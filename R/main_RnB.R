@@ -16,9 +16,9 @@ red.laboratory <- function(A, memberships, inst, on=T){
     red <- A
     red$source.commship <- memberships[red$source]
     red$target.commship <- memberships[red$target]
-    src <- 1:6
+    src <- 2:3
     tgt <- 1:6
-    com <- 3
+    com <- 1
     red$flag <- ifelse(red$source.commship %in% src & red$target.commship %in% tgt & red$weight %in% com, 1, 0)
     red <- with(red, data.frame(source=source, target=target, weight=flag))
     red <- df.to.adj(red)
@@ -41,19 +41,42 @@ blue.laboratory <- function(A, memberships, inst, on=T){
     red <- A
     red$source.commship <- memberships[red$source]
     red$target.commship <- memberships[red$target]
-    src <- 1:6
+    
+    src <- 2:3
+    con.src <- -1
     tgt <- 1:6
+    con.tgt <- -1
+    com <- 1
+    flag.1 <- ifelse(red$source.commship %in% src & red$target.commship %in% tgt & red$weight %in% com, 1, 0)
+    flag.1 <- flag.1 * ifelse(red$source.commship %in% con.src & red$target.commship %in% con.tgt & red$weight %in% com, 0, 1)
+    
+    
+    src <- 1:6
+    con.src <- -1
+    tgt <- 1:6
+    con.tgt <- -1
     com <- 2
-    red$flag <- ifelse(red$source.commship %in% src & red$target.commship %in% tgt & red$weight %in% com, 1, 0)
+    flag.2 <- ifelse(red$source.commship %in% src & red$target.commship %in% tgt & red$weight %in% com, 1, 0)
+    flag.2 <- flag.2 * ifelse(red$source.commship %in% con.src & red$target.commship %in% con.tgt & red$weight %in% com, 0, 1)
+    
+    red$flag <- flag.1 + flag.2
     red <- with(red, data.frame(source=source, target=target, weight=flag))
     red <- df.to.adj(red)
     p <- plot.matrix(red)
     
-    png(paste(inst$plot, inst$mainfolder, "RnB", paste0("blue_src_", paste0(src, collapse = ""),"_tgt_", paste0(tgt, collapse = ""), "_lcom_", paste0(com, collapse = ""), ".png"), sep = "/"), width = 6, height = 5, units = "in", res = 200)
+    suffix <- paste0(com, collapse = "")
+    if (!-1 %in% con.src)
+      suffix <- paste(suffix, con.src %>% paste0(collapse = ""), sep = "0")
+    if (!-1 %in% con.tgt)
+      suffix <- paste(suffix, con.tgt %>% paste0(collapse = ""), sep = "0")
+    
+    suffix <- 'special'
+    
+    png(paste(inst$plot, inst$mainfolder, "RnB", paste0("blue_src_", paste0(src, collapse = ""),"_tgt_", paste0(tgt, collapse = ""), "_lcom_", suffix, ".png"), sep = "/"), width = 6, height = 5, units = "in", res = 200)
     print(p)
     dev.off()
     
-    write.csv(red, paste("../CSV", inst$folder, "RnB", inst$common, paste0("blue_src_", paste0(src, collapse = ""), "_tgt_", paste0(tgt, collapse = ""), "_lcom_", paste0(com, collapse = ""), ".csv"), sep = "/"), row.names = F)
+    write.csv(red, paste("../CSV", inst$folder, "RnB", inst$common, paste0("blue_src_", paste0(src, collapse = ""), "_tgt_", paste0(tgt, collapse = ""), "_lcom_", suffix, ".csv"), sep = "/"), row.names = F)
   } else
     print("Blue laboratory day-off!")
   
@@ -111,8 +134,8 @@ main <- function(inst, k){
   A <- A[A$weight > 0,]
   
   ### Go to lab!!
-  red.laboratory(A, node.membership, inst, on = T)
-  blue.laboratory(A, node.membership, inst, on = F)
+  red.laboratory(A, node.membership, inst, on = F)
+  blue.laboratory(A, node.membership, inst, on = T)
   
 }
 
