@@ -312,7 +312,7 @@ void print_vector(vector<gfloat> &v){
 
 int main(){
 
-    // Initializing variables
+    //// Initializing variables
 
     // structs
     summary<long double> val;
@@ -324,20 +324,20 @@ int main(){
     // vectors 1D
     vector<long double> vmean;
     vector<long double> vstd;
-    vector<int_fast16_t> list_1 = {1,1,1,1,2,2,2,3,3,4};
-    vector<int_fast16_t> list_2 = {1,2,3,4,2,3,4,3,4,4};
     // chars
     char fln_path[] = "../CSV/merged/imputation/tracto2016/zz_model/fln_4_r_6_3.csv";
     char sim_path[] = "../CSV/merged/similarity/tracto2016/zz_model/sim_l10_4_r_6_3.csv";
-    const char common[] = "../CSV/merged/RnB/tracto2016/zz_model";
-    char red_path[75];
-    char blue_path[75];
+    char common[] = "../CSV/merged/RnB/tracto2016/zz_model/";
+    char red_name[] = "blue_src_123456_tgt_123456_lcom_special.csv";
+    char blue_name[] = "blue_src_123456_tgt_123456_lcom_special.csv";
+    char red_path[sizeof(common)/sizeof(common[0])+sizeof(red_name)/sizeof(red_name[0])];
+    char blue_path[sizeof(common)/sizeof(common[0])+sizeof(blue_name)/sizeof(blue_name[0])];
     // ints
     int_fast16_t N=107;
     // bools
     bool header;
 
-    // Start Code
+    //// Start Code
 
     // load fln
     header = false;
@@ -356,30 +356,33 @@ int main(){
     replace_max(sim);
     cout << "Finished\n";
 
-    for (int_fast16_t i=0; i < list_1.size(); i++){
-        // load red
-        header = false;
-        sprintf(red_path, "%s/red_src_123456_tgt_123456_lcom_%i.csv", common, list_1[i]);
-        printf("Loading red csv: red_src_123456_tgt_123456_lcom_%i\n", list_1[i]);
-        red = read_csv(red_path, header);
-        cout << "Finished\n";
+    // load red
+    header = false;
 
-        // load blue
-        header = false;
-        sprintf(blue_path, "%s/red_src_123456_tgt_123456_lcom_%i.csv", common, list_2[i]);
-        printf("Loading blue csv: red_src_123456_tgt_123456_lcom_%i\n", list_2[i]);
-        blue = read_csv(blue_path, header);
-        cout << "Finished\n";
+    strcpy(red_path, common);
+    strcat(red_path, red_name);
+    printf("Loading red csv: %s\n", red_name);
+    red = read_csv(red_path, header);
+    cout << "Finished\n";
 
-        // Compute distance
-        cout << "Getting average similarity between RnB\n";
-        val = RnB_similarity(fln, red, blue, sim, N);
-        cout << "Finished\n";
+    // load blue
+    header = false;
+    strcpy(blue_path, common);
+    strcat(blue_path, blue_name);
+    printf("Loading blue csv: %s\n", blue_name);
+    blue = read_csv(blue_path, header);
+    cout << "Finished\n";
 
-        vmean.push_back(val.mean);
-        vstd.push_back(val.stdn);
-    }
+    // Compute distance
+    cout << "Getting average similarity between RnB\n";
+    val = RnB_similarity(fln, red, blue, sim, N);
+    cout << "Finished\n";
 
+    // Stack means and stds
+    vmean.push_back(val.mean);
+    vstd.push_back(val.stdn);
+
+    // print maens and stds
     print_vector(vmean);
     print_vector(vstd);
     
