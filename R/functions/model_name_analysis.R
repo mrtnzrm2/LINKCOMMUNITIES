@@ -1,8 +1,9 @@
 model.name <- function(type.sim, typeLinkage, mode, fln.2.w,  EC, tag){
-  if (!pracma::strcmp(tag,'')){
+  if (!pracma::strcmp(tag,"")){
     filename <- sprintf('%s_%s_%s_%s', type.sim, typeLinkage, mode, tag)
   } else{
     filename <- sprintf('%s_%s_%s', type.sim,  typeLinkage, mode)
+    print(filename)
   }
   
   if (EC)

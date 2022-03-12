@@ -1,4 +1,4 @@
-plot.hier.edg.bundle <- function(K, net, net.cluster, regions, labels, path="", foldername="", subfolder="", filename=""){
+plot.hier.edg.bundle <- function(K, net, net.cluster, regions, labels, membership, path="", foldername="", subfolder="", filename=""){
   
   if (!pracma::strcmp(subfolder, '')){
     dir.create(sprintf('%s/%s/%s', path, foldername, subfolder), showWarnings = FALSE)
@@ -8,21 +8,24 @@ plot.hier.edg.bundle <- function(K, net, net.cluster, regions, labels, path="", 
   source('functions/linkcomm_parameters.R')
   source("functions/gg_color_hue.R")
   
-  net <- assign.commship(net, net.cluster, K, 0)
+  # print("** Using hclust as passed")
+  # source('functions/assign_commship.R')
+  # net <- assign.commship(net, hcluster, k, 0)
+  
+  print("*** Warning: You are using a reference hclust to munkres the current hclust")
+  source('functions/assign_commship_reference.R')
+  net <- assign.commship.reference(net, hcluster, k)
+  
   est.para <- linkcomm.parameters(net)
   net$commship[which(net$commship %in% est.para$commship[which(est.para$Dc <= 0)])] <- -1
   net$commship[which(net$commship %in% est.para$commship[is.na(est.para$Dc)])] <- -1
   net <- net[net$commship > 0,]
   net$slabel <- labels[net$source]
   net$tlabel <- labels[net$target]
-  
-  print("-----> Warning: Be careful choosing the right partition")
-  commships <- read.csv("../WSBM/CD/CSV/labels/merged/tracto2016/zz_model/4_r_6_3.csv", header = F) %>% unlist() %>% as.numeric()
-  
-  nc <- commships %>% unique() %>% length()
+  nc <- membership %>% unique() %>% length()
   hier <- data.frame(from="origin", to=paste("group", 1:nc, sep = "_"))
   for (cs in 1:nc){
-    hier <- hier %>% rbind(data.frame(from=paste("group", cs, sep = "_"), to=labels[commships == cs]))
+    hier <- hier %>% rbind(data.frame(from=paste("group", cs, sep = "_"), to=labels[membership == cs]))
 
   }
   

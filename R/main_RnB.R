@@ -16,7 +16,7 @@ red.laboratory <- function(A, memberships, inst, on=T){
     red <- A
     red$source.commship <- memberships[red$source]
     red$target.commship <- memberships[red$target]
-    src <- 2:3
+    src <- 1:6
     tgt <- 1:6
     com <- 1
     red$flag <- ifelse(red$source.commship %in% src & red$target.commship %in% tgt & red$weight %in% com, 1, 0)
@@ -42,7 +42,7 @@ blue.laboratory <- function(A, memberships, inst, on=T){
     red$source.commship <- memberships[red$source]
     red$target.commship <- memberships[red$target]
     
-    src <- 2:3
+    src <- 1:6
     con.src <- -1
     tgt <- 1:6
     con.tgt <- -1
@@ -51,15 +51,15 @@ blue.laboratory <- function(A, memberships, inst, on=T){
     flag.1 <- flag.1 * ifelse(red$source.commship %in% con.src & red$target.commship %in% con.tgt & red$weight %in% com, 0, 1)
     
     
-    src <- 1:6
-    con.src <- -1
-    tgt <- 1:6
-    con.tgt <- -1
-    com <- 2
-    flag.2 <- ifelse(red$source.commship %in% src & red$target.commship %in% tgt & red$weight %in% com, 1, 0)
-    flag.2 <- flag.2 * ifelse(red$source.commship %in% con.src & red$target.commship %in% con.tgt & red$weight %in% com, 0, 1)
+    # src <- 1:6
+    # con.src <- -1
+    # tgt <- 1:6
+    # con.tgt <- -1
+    # com <- 2
+    # flag.2 <- ifelse(red$source.commship %in% src & red$target.commship %in% tgt & red$weight %in% com, 1, 0)
+    # flag.2 <- flag.2 * ifelse(red$source.commship %in% con.src & red$target.commship %in% con.tgt & red$weight %in% com, 0, 1)
     
-    red$flag <- flag.1 + flag.2
+    red$flag <- flag.1 #+ flag.2
     red <- with(red, data.frame(source=source, target=target, weight=flag))
     red <- df.to.adj(red)
     p <- plot.matrix(red)
@@ -80,6 +80,22 @@ blue.laboratory <- function(A, memberships, inst, on=T){
   } else
     print("Blue laboratory day-off!")
   
+}
+
+arrange.membership.manual <- function(id){
+  # 3 -> 1 1 -> 3 5 -> 6 6 -> 5
+  for (i in 1:length(id)){
+    if (id[i] == 1)
+      id[i] <- 3
+    else if (id[i] == 3)
+      id[i] <- 1
+    else if (id[i] == 5)
+      id[i] <- 6
+    else if (id[i] == 6)
+      id[i] <- 5
+  }
+  
+  return(id)
 }
 
 main <- function(inst, k){
@@ -126,7 +142,7 @@ main <- function(inst, k){
   
   print("Warning: Be careful choosing the right partition")
   node.membership <- read.csv("../WSBM/CD/CSV/labels/merged/tracto2016/zz_model/4_r_6_3.csv", header = F) %>% as.matrix()
-  
+  node.membership <- arrange.membership.manual(node.membership)
   ### Reorder using node memberships
   A <- A[order(node.membership), order(node.membership)]
   node.membership <- node.membership[order(node.membership)]
@@ -134,8 +150,8 @@ main <- function(inst, k){
   A <- A[A$weight > 0,]
   
   ### Go to lab!!
-  red.laboratory(A, node.membership, inst, on = F)
-  blue.laboratory(A, node.membership, inst, on = T)
+  red.laboratory(A, node.membership, inst, on = T)
+  blue.laboratory(A, node.membership, inst, on = F)
   
 }
 

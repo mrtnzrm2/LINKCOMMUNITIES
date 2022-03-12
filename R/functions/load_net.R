@@ -10,7 +10,7 @@ load.net <- function(inst){
   net.fln <- as.matrix(net.fln)
   net.fln[net.fln == 0] <- NA
 
-  labels <- read.csv(file.path('..', 'CSV', inst$labels)) %>% as.matrix() %>% unname() %>% tolower() # 'merged', 'labels',  'imputation_zz_model_NONULL_tracto2016_clabel.csv'
+  labels <- read.csv(file.path('..', 'CSV', inst$labels)) %>% as.matrix() %>% unname() %>% tolower()
   # labels <-  read.csv(sprintf('%s/CSV/CountMatrix_Summed_Main43_Periphery8_220126_arr_rlabels.csv', path)) %>% as.matrix() %>% unname() %>% tolower()
   
   leaves <- length(net.fln[!is.na(net.fln)])

@@ -1,20 +1,34 @@
 load.hclust <- function(resolution, filename, suffix, save=T){
-  
   if (save){
     merge <- read.csv(paste('..', 'CSV', 'merged/similarity/tracto2016/zz_model', paste0('merge_th_', resolution, paste0(suffix,'.csv')), sep = '/'), header = F) %>% as.matrix()  # 91x40
     height <- read.csv(paste('..', 'CSV', 'merged/similarity/tracto2016/zz_modeL', paste0('height_th_', resolution, paste0(suffix,'.csv')), sep = '/'), header = F) %>% as.matrix()
     
     hybrid <- list(merge = merge,
-                   height = height,
-                   order = 1:leaves)
+                  height = height,
+                  order = 1:leaves)
     class(hybrid) <- 'hclust'
     
     saveRDS(hybrid, paste('../RDS', filename,'hclust', paste0('hierarchical_clustering_hyb_', resolution,'.rds'), sep = '/')) ## save
   } else{
     hybrid <- readRDS(paste('../RDS', filename,'hclust', paste0('hierarchical_clustering_hyb_', resolution,'.rds'), sep = '/')) 
   }
-  
   return(hybrid)
+}
+
+load.hclut.similarity <- function(inst, linkage, filename, resolution, save=T){
+  if (save){
+    print("Loading similarity matrix, formating it and returning the hclust")
+    print("Warning: check path to similarity file.")
+    net.sim <- read.csv(paste('../CSV', inst$folder,'similarity', inst$common,'sim_full_l10.csv', sep = "/"), header = F) %>% as.matrix() %>% t()
+    net.sim[net.sim == -1] <- NA
+    net.dis <- -log10(net.sim)
+    max.dis <- max(net.dis, na.rm = T)
+    net.dis[is.na(net.dis)] <- max.dis + 1
+    net.cluster <- hclust(as.dist(net.dis), method = linkage) 
+    saveRDS(net.cluster, paste('../RDS', filename,'hclust', paste0('hierarchical_clustering_hyb_', resolution,'.rds'), sep = '/')) ## save
+  } else
+    net.cluster <- readRDS(paste('../RDS', filename,'hclust', paste0('hierarchical_clustering_hyb_', resolution,'.rds'), sep = '/')) 
+  return(net.cluster)
 }
 
 load.process <- function(net, hybrid, nodes, filename, save=T){
@@ -25,7 +39,7 @@ load.process <- function(net, hybrid, nodes, filename, save=T){
   }else{
     hclust.features <- readRDS(file.path('..', 'RDS', '{name}/dndrgm/single_linkage_features_hyb.rds' %>% sformat(list(name=filename))) )
   }
-  
+  print(process)
   return(hclust.features)
 }
 
@@ -49,7 +63,7 @@ make.parameters <- function(inst, folder.plot, features, on=T){
     print("No parameters")
 }
 
-make.link.comm <- function(Ns, net, nodes, cluster, leaves, regions, inst, folder.plot, on=T){
+make.link.comm <- function(Ns, net, nodes, cluster, labels, leaves, regions, inst, folder.plot, on=T){
   if (on){
     print("Plotting link communities matrices")
     source('functions/plot_lincomm_matrix.R')
@@ -63,6 +77,16 @@ make.link.comm <- function(Ns, net, nodes, cluster, leaves, regions, inst, folde
     } 
   } else
     print("No link communities matrix")
+}
+
+make.heatmap <- function(net, labels, on=T){
+  if (on){
+    print("Plotting heatmap of the fln network with manual ordering")
+    source("functions/plot_heatmap.R")
+    plot.heatmap(net, labels)
+  } else
+    print("No heatmap")
+  
 }
 
 save.tables <- function(Ks, net, merde, labels, inst, resolution, suffix, on=T){
@@ -83,17 +107,15 @@ save.tables <- function(Ks, net, merde, labels, inst, resolution, suffix, on=T){
     print("No creating tables")
 }
 
-
 main <- function(inst){
   
-  linkage <- 'single'
+  linkage <- 'average'
   similarity.index <- 'jaccp'
   self.loop.type <- 'ALPHA'
   EC <- F
   nlog10 <- T
-  tag <- 'zz_model_NONULL_tracto2016_merged' # zz_model_NONULL_tracto2016_merged  91x40
-  fln.name <- 'fln'
-  single.resolution <- 2351
+  tag <- paste(inst$model, inst$distances, inst$folder, sep = "_") # zz_model_NONULL_tracto2016_merged  91x40
+  single.resolution <- 0
   suffix <- '_l10'
   
   source('functions/load_net.R')
@@ -108,23 +130,27 @@ main <- function(inst){
     net$weight[net$weight != 0] <- -log10(net$weight[net$weight != 0])
   }
   
+  ### Remember to make a function for this chunk
+  
+  ###
+  
   source('functions/model_name_analysis.R')
   filename <- model.name(similarity.index, linkage, self.loop.type,  nlog10, EC, tag)
   source('functions/sformat.R')
-  folder.plot <- paste(inst$plot, inst$folder, inst$common, paste0('normal_full',suffix), sep = "/")
+  folder.plot <- paste(inst$plot, inst$folder, inst$common, paste0('AVERAGE_full',suffix), sep = "/")
   dir.create(sprintf('%s/%s', inst$plot, folder.plot), showWarnings = F)
   
   #### Analysis stars here:
-  hybrid <- load.hclust(single.resolution, filename, suffix, save=F)
-  process <- load.process(net, hybrid, nodes, filename, save=F)
-  print(process)
-  hybrid.merde <- load.merde(process, nodes, labels, net, hybrid, leaves, single.resolution, filename, save=F)
-  
+  # hybrid <- load.hclust(single.resolution, filename, suffix, save=F)
+  hybrid <- load.hclut.similarity(inst, linkage, filename, single.resolution, save=F)
+  # process <- load.process(net, hybrid, nodes, filename, save=F)
+  # hybrid.merde <- load.merde(process, nodes, labels, net, hybrid, leaves, single.resolution, filename, save=F)
   ### Plotting part:
   make.parameters(inst, folder.plot, process, on=F)
-  make.link.comm(30:2, net, nodes, hybrid, leaves, regions, inst, folder.plot, on=F)
+  make.link.comm(4, net, nodes, hybrid, labels, leaves, regions, inst, folder.plot, on=F)
+  make.heatmap(net, labels, on=T)
   ## Table part:
-  save.tables(Ks, net, hybrid.merde, labels, inst, single.resolution, suffix, on=F)
+  save.tables(4, net, hybrid.merde, labels, inst, single.resolution, suffix, on=F)
   
 }
 
@@ -143,7 +169,9 @@ path.list <- list(csv=csv.path,
                   labels=labels.path, 
                   plot=plot.path, 
                   common=common.path,
-                  folder=folder)
+                  folder=folder,
+                  model=model,
+                  distances=distances)
 
 main(path.list)
 

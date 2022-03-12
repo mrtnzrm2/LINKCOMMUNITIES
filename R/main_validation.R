@@ -119,38 +119,13 @@ run.xgb.regression <- function(net, nt, nodes, labels, serie, inst, kfold=3, wor
     print("** No xgb regressions")
 }
 
-plot.xgb.residuals <- function(serie, inst, subfolder="", suffix=""){
-  source("functions/rmae.R")
-  dir.create("%s/%s/Regression/XGBOOST/%s/%i" %>% sprintf(inst$plot, inst$folder, subfolder, serie), showWarnings = F)
-  # Load data ----
-  data <- readRDS("../RDS/imputation/%s/XGBOOST/model_predictions_%i.rds" %>% sprintf(inst$common, serie))
-  # Marginalize over ids
-  data <- data %>% dplyr::group_by(id) %>% dplyr::summarise(w=unique(w), stdist=unique(dist), .pred=mean(pred))
-  data <- data %>% dplyr::mutate(.resid=(w-.pred), .stdresid = (w-.pred)/sd((w-.pred)), .rmae=abs(w-.pred)/w)
-  source("functions/plot_diagnosis.R")
-  # Plot diagnosis ----
-  p <- plot.diagnosis(data)
-  purb <- ggpubr::ggarrange(p$res.fit, p$norm.qq, p$scale.location, p$den.res, nrow = 2, ncol = 2, labels = c("A", "B", "C", "D"))
-  png("%s/%s/Regression/XGBOOST/%s/%i/residuals_marg_id%s.png" %>% sprintf(inst$plot, inst$folder, subfolder, serie, suffix), width = 9, height = 8, res = 200, units = "in")
-  print(purb)
-  dev.off()
-  # Plot RMAE ----
-  p.wrmae <- ggplot2::ggplot(data, ggplot2::aes(w, .rmae))+
-    ggplot2::geom_point(size=0.1)+
-    ggplot2::xlab("w")+
-    ggplot2::ylab("Relative prediction error")+
-    ggplot2::stat_smooth(method = "loess", color="orange", fill="orange")+
-    ggplot2::theme_bw()
-  p.distrmae <- ggplot2::ggplot(data, ggplot2::aes(stdist, .rmae))+
-    ggplot2::geom_point(size=0.1)+
-    ggplot2::xlab("Standardize distance")+
-    ggplot2::ylab("Relative prediction error")+
-    ggplot2::stat_smooth(method = "loess", color="orange", fill="orange")+
-    ggplot2::theme_bw()
-  purb <- ggpubr::ggarrange(p.wrmae, p.distrmae, p.rmse, nrow = 1, ncol = 2, labels = c("A", "B" , "C"))
-  png("%s/%s/Regression/XGBOOST/%s/%i/rmae_marg_id%s.png" %>% sprintf(inst$plot, inst$folder, subfolder, serie, suffix), width = 8, height = 3.5, res = 200, units = "in")
-  print(purb)
-  dev.off()
+make.xgb.residuals <- function(series, inst, subfolder="", on=T){
+  if (on){
+    source("functions/plot_xgb_residuals.R")
+    print("** Plotting xgb residuals")
+    plot.xgb.residuals(serie, inst, subfolder=subfolder)
+  } else
+    print("** No xgb residuals")
 }
 
 main <- function(inst){
@@ -189,10 +164,10 @@ main <- function(inst){
   # Experiment ----
   run.xgb.exp.regression(net, nt, nodes, labels, serie, inst, work=F)
   # Run ----
-  run.xgb.regression(net, nt, nodes, labels, serie, inst, kfold=3, work=T)
+  run.xgb.regression(net, nt, nodes, labels, serie, inst, kfold=3, work=F)
   # Plots ----
   make.experiment.parameters(serie, inst, subfolder="SerieAnalysis", on=F)
-  # plot.xgb.residuals(serie, inst, subfolder="Residuals")
+  make.xgb.residuals(serie, inst, subfolder = "Residuals", on=F)
   
 }
 
