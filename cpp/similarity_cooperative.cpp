@@ -273,10 +273,10 @@ int main(){
 
 	const string average = "ALPHA";
 	const int N = 107;
-	const int leaves = 6868; // 6880
+	const int leaves = 6880; // 6880 6868
 
 	header = false;
-	csv_path = "../CSV/merged/imputation/tracto2016/zz_model/fln_4_r_6_3.csv"; // ../CSV/merged/imputation/tracto2016/zz_model/NONULL/
+	csv_path = "../CSV/merged/imputation/tracto2016/normal/fln.csv"; // ../CSV/merged/imputation/tracto2016/zz_model/NONULL/
 	cout << "Loading fln\n";
     vector<vector<long double> > fln_matrix = read_csv(csv_path, header);
 	cout << "Finished\n";
@@ -295,10 +295,10 @@ int main(){
 	cout << "Finished\n";
 
 	cout << "Saving\n";
-	out_path = "../CSV/merged/similarity/tracto2016/zz_model/sim_full_l10_4_r_6_3.csv";
+	out_path = "../CSV/merged/similarity/tracto2016/normal/sim_full_l10.csv";
 	out_csv(sim_matrix, out_path, leaves);
 	sim_matrix = up_triangular_rows(sim_matrix, leaves);
-	out_path = "../CSV/merged/similarity/tracto2016/zz_model/sim_l10_4_r_6_3.csv";
+	out_path = "../CSV/merged/similarity/tracto2016/normal/sim_l10.csv";
 	out_csv_up_triangular(sim_matrix, out_path, leaves);
 	cout << "End\n";
 
