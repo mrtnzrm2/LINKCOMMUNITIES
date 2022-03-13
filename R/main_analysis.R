@@ -60,33 +60,22 @@ main <- function(inst){
   dis <- matrix(0, nrow = 4, ncol = 4)
   source("functions/assign_commship_reference.R")
   net <- assign.commship.reference(net, net.cluster, 4)
-  
-  for (i in 1:4){
-    for (j in 1:4){
-      if (i <= j){
-        dis[i,j] <- mean(net.dis[net$id[net$commship == i], net$id[net$commship == j]], na.rm=T)
-      }
-    }
-  }
-  
-  print(dis)
 
-  # print("* Analysing the hclust")
-  # if(estSave){
-  #   source('functions/process_hclust.R')
-  #   hclust.features <- process.hclust(net, net.cluster, nodes)
-  #   print("* Finished")
-  #   print("* Save hclust analysis")
-  #   saveRDS(hclust.features, file.path('..', 'RDS', '{name}/dndrgm/single_linkage_features.rds' %>% sformat(list(name=filename))) )
-  #   print("* Finished")
-  # 
-  # } else{
-  #   print("** Warning: Be caregul. Load hclust analysis")
-  #   hclust.features <- readRDS(file.path('..', 'RDS', '{name}/dndrgm/single_linkage_features.rds' %>% sformat(list(name=filename))) )
-  #   print("* Finished")
-  # }
-  # 
-  # print(hclust.features[(nrow(hclust.features)-100):(nrow(hclust.features)),])
+  print("* Analysing the hclust")
+  if(estSave){
+    source('functions/process_hclust.R')
+    hclust.features <- process.hclust(net, net.cluster, nodes)
+    print("* Finished")
+    print("* Save hclust analysis")
+    saveRDS(hclust.features, file.path('..', 'RDS', '{name}/dndrgm/single_linkage_features.rds' %>% sformat(list(name=filename))) )
+    print("* Finished")
+  } else{
+    print("** Warning: Be caregul. Load hclust analysis")
+    hclust.features <- readRDS(file.path('..', 'RDS', '{name}/dndrgm/single_linkage_features.rds' %>% sformat(list(name=filename))) )
+    print("* Finished")
+  }
+
+  print(hclust.features[(nrow(hclust.features)-100):(nrow(hclust.features)),])
   
 }
 
