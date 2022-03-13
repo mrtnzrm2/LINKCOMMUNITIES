@@ -43,6 +43,24 @@ make.experiment.parameters <- function(series, inst, subfolder="", on=T){
     print("* No XGBOOST parameters")
 }
 
+make.xgb.residuals <- function(series, inst, subfolder="", on=T){
+  if (on){
+    source("functions/plot_xgb_residuals.R")
+    print("** Plotting xgb residuals")
+    plot.xgb.residuals(serie, inst, subfolder=subfolder)
+  } else
+    print("** No xgb residuals")
+}
+
+make.parameters <- function(features, inst, subfolder="", on=T){
+  if (on){
+    print("*** Printing parameters plots")
+    source('functions/plot_process_parameters.R')
+    plot.process.parameters(inst$plot, inst$folder, features, subfolder=subfolder)  
+  } else
+    print("*** No parameters")
+}
+
 run.xgb.exp.regression <- function(net, nt, nodes, labels, serie, inst, kfold=3, work=T){
   if (work){
     source("functions/split_kfold.R")
@@ -75,6 +93,15 @@ run.xgb.exp.regression <- function(net, nt, nodes, labels, serie, inst, kfold=3,
     }
   } else
     print("** No experiment")
+}
+
+make.linkcommunities <- function(train, test, serie, inst, subfolder="", on=T){
+  if (on){
+    print("*** Plotting link communities in the dis-sim space")
+    source("functions/plot_linkcomm_validation.R")
+    plot.linkcommm.validation(train, test, serie, inst, subfolder=subfolder)
+  } else
+    print("*** No dis-sim space")
 }
 
 run.xgb.regression <- function(net, nt, nodes, labels, serie, inst, kfold=3, work=T){
@@ -119,13 +146,137 @@ run.xgb.regression <- function(net, nt, nodes, labels, serie, inst, kfold=3, wor
     print("** No xgb regressions")
 }
 
-make.xgb.residuals <- function(series, inst, subfolder="", on=T){
-  if (on){
-    source("functions/plot_xgb_residuals.R")
-    print("** Plotting xgb residuals")
-    plot.xgb.residuals(serie, inst, subfolder=subfolder)
+link.classification <- function(dataset, serie, inst, subfolder=""){
+  dir.create("%s/%s/Regression/XGBOOST/%s/%i" %>% sprintf(inst$plot, inst$folder, subfolder, serie), showWarnings = F)
+  source("functions/df_to_adj.R")
+  train.w <- rsample::training(dataset) %>% dplyr::pull(w)
+  train.sim <- rsample::training(dataset)  %>% dplyr::pull(sim)
+  train.dist <- rsample::training(dataset)  %>% dplyr::pull(dist)
+  ntrain <- rsample::training(dataset) %>% nrow()
+  test.sim <- rsample::testing(dataset)  %>% dplyr::pull(sim)
+  test.dist <- rsample::testing(dataset)  %>% dplyr::pull(dist)
+  ntest <- rsample::testing(dataset) %>% nrow()
+  # Create distance from the training set ----
+  Rcpp::sourceCpp("../cpp/distance_matrix.cpp")
+  dist3d.train <- disma3d(train.w, train.dist, train.sim, ntrain) %>% unlist() %>% pracma::Reshape(ntrain, ntrain)
+  hclust.train <- hclust(dist3d.train %>% as.dist() , method = "complete")
+  ## Process hclust ----
+  source('functions/process_hclust_distance.R')
+  hclust.process <- process.hclust.dist(hclust.train)
+  ## Plot SS parameter ----
+  make.parameters(hclust.process, inst,  subfolder=subfolder, on=T)
+  # Assign id to train set ----
+  k <- hclust.process %>% dplyr::filter(SS == max(SS, na.rm = T)) %>% dplyr::pull(K) %>% unique() %>% sort()
+  if (length(k) > 1)
+    k <- k[1]
+  data.train <- rsample::training(dataset) %>% dplyr::bind_cols(dplyr::tibble(id=cutree(hclust.train, k=k)))
+  ## Create distance matrix between train and test set ----
+  dist2d.train.test <- disma2d_truncated(train.dist, train.sim, test.dist, test.sim, ntrain, ntest)
+  ## Find final cluster ----
+  Rcpp::sourceCpp("../cpp/constrained_hcluster.cpp")
+  test.communities <- constrained_hclust(dist2d.train.test, data.train$id, ntrain, ntest, k) %>% unlist() %>% pracma::Reshape(ntest, k) %>% t()
+  # Assign id to test set ----
+  data.test <- rsample::testing(dataset)
+  data.test$id <- 0
+  for (i in 1:k)
+    data.test$id[test.communities[i,] == 1] <- i
+  data.train$id <- data.train$id %>% as.character()
+  data.test$id <- data.test$id %>% as.character()
+  ## Plot dis-sim train-test communities ----
+  make.linkcommunities(data.train, data.test, serie, inst, subfolder = subfolder, on=T)
+  # Save data ----
+  data <- structure(
+    list(data = data.train %>% dplyr::bind_rows(data.test),
+         in_id = 1:ntrain,
+         out_id = (ntrain+1):(ntrain+ntest)
+    ),
+    class = "rsplit"
+  )
+  data.train$cat <- "train"
+  data.test$cat <- "test"
+  dat <- data.train %>% dplyr::bind_rows(data.test)
+  p <- ggplot2::ggplot(dat, ggplot2::aes(w))+
+    ggplot2::facet_grid(cat ~ id)+
+    ggplot2::geom_histogram()
+  png("%s/%s/Regression/XGBOOST/%s/%i/hist_id.png" %>% sprintf(inst$plot, inst$folder, subfolder, serie), width = 15, height =10 , res = 200, units = "in")
+  print(p)
+  dev.off()
+  return(data)
+}
+
+run.xgb.regression.lc <- function(net, nt, nodes, labels, serie, inst, kfold=3, work=T){
+  if (work){
+    source("functions/split_kfold.R")
+    source("functions/setup_datasets.R")
+    source("functions/explore_xgboost_parameters.R")
+    source("functions/save_work_regression.R")
+    print("* Starting xgb regression")
+    # Start experiment ----
+    for (i in 1:1){
+      ## Kfold loop ----
+      split.kfold <- split.dataset.kfold(nt, kfold = kfold)
+      for (j in 1:1){
+        print("** Trial: %i kfold: %i" %>% sprintf(i,j))
+        ### Assemble split ----
+        split <- assemble.split(split.kfold, j)
+        ### Get datasets ----
+        datasets <- get.dataset(net, nt, nodes, labels, split, inst, filename=serie %>% as.character(), save=T)
+        ids <- datasets$ids
+        mats <- datasets$matids
+        datasets <- datasets$data
+        datasets <- link.classification(datasets, serie, inst, subfolder = "VariableEvolution")
+        ### Set-up XGBOOST ----
+        xgboost.model <-
+          parsnip::boost_tree(
+            mode = "regression",
+            trees = 500,
+            min_n = 15,
+            tree_depth =  3,
+            learn_rate = 0.01,
+            loss_reduction = 0.01
+          ) %>%
+          parsnip::set_engine("xgboost", objective = "reg:squarederror")
+        # ### Save ----
+        save.work.regression(xgboost.model, datasets, ids, inst, mats, serie=serie, trial=i, fold=j)
+      }
+    }
   } else
-    print("** No xgb residuals")
+    print("** No xgb regressions")
+}
+
+run.xgb.exp.regression.lc <- function(net, nt, nodes, labels, serie, inst, kfold=3, work=T){
+  if (work){
+    source("functions/split_kfold.R")
+    source("functions/setup_datasets.R")
+    source("functions/get_optimized_xgboost.R")
+    source("functions/explore_xgboost_parameters.R")
+    source("functions/save_work_experiment.R")
+    print("** Starting experiment")
+    # Start experiment ----
+    for (i in 1:1){
+      ## Kfold loop ----
+      split.kfold <- split.dataset.kfold(nt, kfold = kfold)
+      for (j in 1:1){
+        ### Assemble split ----
+        split <- assemble.split(split.kfold, j)
+        ## Get datasets ----
+        datasets <- get.dataset(net, nt, nodes, labels, split, inst, filename=serie %>% as.character(), save=T)
+        ids <- datasets$ids
+        mats <- datasets$matids
+        datasets <- datasets$data
+        datasets <- link.classification(datasets, serie, inst, subfolder = "VariableEvolution")
+        ## Hyperparameter optimization and Model ----
+        xmodel <- get.optimized.xgboost(datasets, inst, grid.size = 10, filename =serie %>% as.character(), save=T)
+        xgboost.model <- xmodel$model %>% tune::finalize_model(xmodel$parameters)
+        ## Plots ----
+        make.train.rmse(datasets, xgboost.model, inst, subfolder="Residuals_EXP", on=F)
+        explore.xgboost.parameters(xgboost.model, datasets, mats, ids, inst, subfolder="Residuals_EXP", suffix=serie %>% as.character(), on=T)
+        ## Save ----
+        save.work.experiment(xmodel, datasets, ids, serie, inst, mats, suffix = i)
+      }
+    }
+  } else
+    print("** No experiment")
 }
 
 main <- function(inst){
@@ -163,8 +314,10 @@ main <- function(inst){
   
   # Experiment ----
   run.xgb.exp.regression(net, nt, nodes, labels, serie, inst, work=F)
+  run.xgb.exp.regression.lc(net, nt, nodes, labels, serie, inst, work=T)
   # Run ----
   run.xgb.regression(net, nt, nodes, labels, serie, inst, kfold=3, work=F)
+  run.xgb.regression.lc(net, nt, nodes, labels, serie, inst, kfold=3, work=F)
   # Plots ----
   make.experiment.parameters(serie, inst, subfolder="SerieAnalysis", on=F)
   make.xgb.residuals(serie, inst, subfolder = "Residuals", on=F)
