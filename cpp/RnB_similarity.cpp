@@ -205,36 +205,36 @@ void replace_max(vector<vector<gfloat> > &matrix){
     }
 }
 
-template <typename gfloat, typename gint>
-vector<gint> RnB_neigborhood(vector<vector<gint> > &id, vector<vector<gfloat> > &red, vector<vector<gfloat> > &blue, gint &N){
+// template <typename gfloat, typename gint>
+// vector<gint> RnB_neigborhood(vector<vector<gint> > &id, vector<vector<gfloat> > &red, vector<vector<gfloat> > &blue, gint &N){
 
-    set<gint> s;
-    vector<gint> neigborhood;
-    gint id_red, id_blue;
+//     set<gint> s;
+//     vector<gint> neigborhood;
+//     gint id_red, id_blue;
 
-    for (gint i=0; i < N; i++){
-        for (gint j=0; j < N; j++){
-            id_red = id[i][j];
-            if (id_red == -1 || red[i][j] == 0)
-                continue;
-            for (gint k=0; k < N; k++){
-                id_blue = id[i][k];
-                if (blue[i][k] == 1 && id_blue != -1 && id_blue != id_red)
-                    neigborhood.push_back(id_blue);
+//     for (gint i=0; i < N; i++){
+//         for (gint j=0; j < N; j++){
+//             id_red = id[i][j];
+//             if (id_red == -1 || red[i][j] == 0)
+//                 continue;
+//             for (gint k=0; k < N; k++){
+//                 id_blue = id[i][k];
+//                 if (blue[i][k] == 1 && id_blue != -1 && id_blue != id_red)
+//                     neigborhood.push_back(id_blue);
 
-                id_blue = id[k][j];
-                if (blue[k][j] == 1 && id_blue != -1 && id_blue != id_red)
-                    neigborhood.push_back(id_blue);
-            }
-        }
-    }
+//                 id_blue = id[k][j];
+//                 if (blue[k][j] == 1 && id_blue != -1 && id_blue != id_red)
+//                     neigborhood.push_back(id_blue);
+//             }
+//         }
+//     }
 
-    for (gint i=0; i < neigborhood.size(); i++)
-        s.insert(neigborhood[i]);
-    neigborhood.assign(s.begin(), s.end());
+//     for (gint i=0; i < neigborhood.size(); i++)
+//         s.insert(neigborhood[i]);
+//     neigborhood.assign(s.begin(), s.end());
 
-    return neigborhood;
-}
+//     return neigborhood;
+// }
 
 template <typename gfloat, typename gint>
 vector<gint> link_community_ids(vector<vector<gint> > &id, vector<vector<gfloat> > &color, gint &N ){
