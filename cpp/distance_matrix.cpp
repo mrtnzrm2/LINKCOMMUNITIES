@@ -1,6 +1,7 @@
 #include <vector>
 #include <math.h>
 #include <Rcpp.h>
+#include <stdio.h>
 
 using namespace std;
 
@@ -23,53 +24,64 @@ vector<vector<double> > disma3d(vector<double> &w, vector<double> &dist, vector<
 }
 
 double distance2d(double x1, double y1, double x2, double y2){
-    return sqrt(pow(y2-y1,2)+pow(x2-x2,2));
+    return sqrt(pow(y2-y1,2)+pow(x2-x1,2));
 }
 
 // [[Rcpp::export]]
-vector<vector<double> > disma2d(vector<double> &dist_train,
+vector<vector<double> > disma2d_truncated(vector<double> &dist_train,
+                                        vector<double> &sim_train,
+                                        vector<double> &dist_test,
+                                        vector<double> &sim_test,
+                                        int &N_train,
+                                        int &N_test){
+
+    vector<vector<double> > distance_train_test(N_test, vector<double>(N_train,0));
+    for (int i=0; i < N_test; i++){
+        for (int j=0; j < N_train; j++){
+            distance_train_test[i][j] = distance2d(dist_train[j], sim_train[j], dist_test[i], sim_test[i]);
+        }
+    }
+
+    return distance_train_test;
+}
+
+vector<vector<double> > K_centroid(vector<double> &dist, vector<double> &sim, vector<int> &id, int N, int K){
+    vector<vector<double> > K_coords(K, vector<double>(2,0));
+    int count_k;
+    for (int k=0; k < K; k++){
+        count_k=0;
+        for (int i=0; i < N; i++){
+            if (id[i] == k+1){
+                K_coords[k][0] += dist[i];
+                K_coords[k][1] += sim[i];
+                count_k++;
+            }
+        }
+        K_coords[k][0] /= count_k;
+        K_coords[k][1] /= count_k;
+    }
+    return K_coords;
+}
+
+// [[Rcpp::export]]
+vector<vector<double> > disma2d_centroid(vector<double> &dist_train,
                                 vector<double> &sim_train,
                                 vector<double> &dist_test,
                                 vector<double> &sim_test,
+                                vector<int> &id,
                                 int &N_train,
-                                int &N_test){
+                                int &N_test,
+                                int &K){
 
-    vector<vector<double> > distance_train_train(N_train, vector<double>(N_train,0));
-    for (int i=0; i < N_train; i++){
-        for (int j=0; j < i; j++){
-            distance_train_train[i][j] = distance2d(dist_train[i], sim_train[i], dist_train[j], sim_train[j]);
-        }
-    }
+    vector<vector<double> > K_coords = K_centroid(dist_train, sim_train, id, N_train, K);
 
-    vector<vector<double> > distance_test_test(N_test, vector<double>(N_test,0));
+    vector<vector<double> > distance_train_test(N_test, vector<double>(K,0));
     for (int i=0; i < N_test; i++){
-        for (int j=0; j < i; j++){
-            distance_test_test[i][j] = distance2d(dist_test[i], sim_test[i], dist_test[j], sim_test[j]);
-        }
-    }
-    vector<vector<double> > distance_train_test(N_train, vector<double>(N_test,0));
-    for (int i=0; i < N_train; i++){
-        for (int j=0; j < N_test; j++){
-            distance_train_test[i][j] = distance2d(dist_train[i], sim_train[i], dist_test[j], sim_test[j]);
+        for (int k=0; k < K; k++){
+            distance_train_test[i][k] = distance2d(K_coords[k][0], K_coords[k][1], dist_test[i], sim_test[i]);
+
         }
     }
 
-    vector<vector<double> > distance(N_train+N_test, vector<double>(N_train+N_test,0));
-
-    for (int i=0; i < N_train; i++){
-        for (int j=0; j < i; j++){
-            distance[i][j] = distance_train_train[i][j];
-        }
-    }
-    for (int i=0; i < +N_test; i++){
-        for (int j=0; j < i; j++){
-            distance[i+N_train][j+N_train] = distance_test_test[i][j];
-        }
-    }
-    for (int i=0; i < N_train; i++){
-        for (int j=0; j < N_test; j++){
-            distance[i][j+N_test] = distance_train_test[i][j];
-        }
-    }
-    return distance;
+    return distance_train_test;
 }
