@@ -14,11 +14,18 @@ plot.xgb.residuals <- function(serie, inst, subfolder="", suffix=""){
   print(purb)
   dev.off()
   # Plot RMAE ----
+  rmae.table <- dplyr::tibble(
+    w=c("-2.5", "2.5-4.5", "4.5-"),
+    rmae=c(data%>%dplyr::filter(w<2.5)%>%dplyr::pull(.rmae) %>% mean() %>% round(2),
+           data%>%dplyr::filter(w>=2.5, w<=4.5)%>%dplyr::pull(.rmae) %>% mean()%>%round(2),
+           data%>%dplyr::filter(w>4.5)%>%dplyr::pull(.rmae) %>% mean()%>%round(2))
+    )
   p.wrmae <- ggplot2::ggplot(data, ggplot2::aes(w, .rmae))+
     ggplot2::geom_point(size=0.1)+
     ggplot2::xlab("w")+
     ggplot2::ylab("Relative prediction error")+
     ggplot2::stat_smooth(method = "loess", color="orange", fill="orange")+
+    ggplot2::annotation_custom(gridExtra::tableGrob(rmae.table), xmin = 5, xmax = 5.5, ymin = 2, ymax = 2.25)+
     ggplot2::theme_bw()
   p.distrmae <- ggplot2::ggplot(data, ggplot2::aes(stdist, .rmae))+
     ggplot2::geom_point(size=0.1)+
@@ -139,8 +146,9 @@ plot.xgb.residuals <- function(serie, inst, subfolder="", suffix=""){
     ggplot2::ylab("Standardize similarirty")+
     ggpubr::stat_cor()+
     ggplot2::theme_bw()
-  purb <- ggpubr::ggarrange(p.1, p.2, nrow = 1, ncol = 2, labels = c("A", "B"))
-  purb <- ggpubr::ggarrange(purb, p.3, nrow = 2, ncol = 1, labels = c(NA, "C"))
+  purb.2 <- cowplot::plot_grid(p.3, NA, ncol = 2, rel_widths = c(5,2), labels=c("C", NA))
+  purb.1 <- cowplot::plot_grid(p.1, p.2, ncol = 2, labels = c("A", "B"))
+  purb <- cowplot::plot_grid(purb.1, purb.2, nrow = 2)
   png("%s/%s/Regression/XGBOOST/%s/%i/wfeat_marg_id%s.png" %>% sprintf(inst$plot, inst$folder, subfolder, serie, suffix), width = 8, height =8 , res = 200, units = "in")
   print(purb)
   dev.off()
