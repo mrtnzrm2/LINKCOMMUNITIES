@@ -25,7 +25,7 @@ make.cascade <- function(net, merde, nodes, labels, regions, inst, on=T){
     print("No cascade")
 }
 
-make.parameters <- function(inst, features, on=T){
+make.parameters <- function(features, inst, on=T){
   if (on){
     print("Printing parameters plots")
     source('functions/plot_process_parameters.R')
@@ -308,7 +308,7 @@ main <- function(inst){
   # ham.merde <- load.merde(hclust.features, nodes, labels, net, net.cluster, leaves, filename, save=T)
   
   ### Plots start here:
-  make.parameters(inst, hclust.features, on=F)
+  make.parameters(hclust.features, inst, on=F)
   make.cascade(net, ham.merde, nodes, labels, regions, inst, on=F)
   make.mountain(ham.merde, labels, nodes, coords, regions, inst, on=F)
   make.circular(4, hclust.features, ham.merde, inst, regions, on=F)
