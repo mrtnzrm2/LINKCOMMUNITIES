@@ -1,7 +1,8 @@
 #include <vector>
 #include <math.h>
-#include <Rcpp.h>
 #include <stdio.h>
+#include <algorithm>
+#include <Rcpp.h>
 
 using namespace std;
 
@@ -84,4 +85,30 @@ vector<vector<double> > disma2d_centroid(vector<double> &dist_train,
     }
 
     return distance_train_test;
+}
+
+// [[Rcpp::export]]
+Rcpp::List distma2centroid(vector<double> &dist_train,
+                                vector<double> &sim_train,
+                                vector<double> &dist_test,
+                                vector<double> &sim_test,
+                                vector<int> &id,
+                                int &N_train,
+                                int &N_test,
+                                int &K){
+
+    vector<vector<double> > K_coords = K_centroid(dist_train, sim_train, id, N_train, K);
+    vector<vector<double> > leave2centroid(2*K, vector<double>(max(N_test, N_train),0));
+
+    for (int k=0; k < K; k++){
+        for (int i=0; i < N_train; i++){
+            leave2centroid[k][i] = distance2d(K_coords[k][0], K_coords[k][1], dist_train[i], sim_train[i]);
+        }
+    }
+    for (int k=0; k < K; k++){
+        for (int i=0; i < N_test; i++){
+            leave2centroid[k+K][i] = distance2d(K_coords[k][0], K_coords[k][1], dist_test[i], sim_test[i]);
+        }
+    }
+    return Rcpp::List::create(leave2centroid, K_coords);
 }
