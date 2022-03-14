@@ -117,54 +117,32 @@ get.dataset <- function(net, nt, nodes, labels, split, inst, filename="1",save=T
     distances <- get.tracto2016(labels)
     distances <- distances[,1:nt]
     distances <- standardize.matrix(distances)
-    source("functions/get_supra.R")
-    supra <- get.supra(labels)
-    supra <- supra/col.sum(supra, nt)
-    supra[supra != 0] <- log10(supra[supra != 0]) + 7
-    source("functions/get_infra.R")
-    infra <- get.infra(labels)
-    infra <- infra/col.sum(infra, nt)
-    infra[infra != 0] <- log10(infra[infra != 0]) + 7
     ## Assembling train data ----
     source("functions/adj_to_df.R")
     id.train <- assemble.dataset.train(ids, split$train, split$test, labels, nt)
     net.train <- assemble.dataset.train(net, split$train, split$test, labels, nt)
     dist.train <- assemble.dataset.train(distances, split$train, split$test, labels, nt) %>% adj.to.df()
-    supra.train <-  assemble.dataset.train(supra, split$train, split$test, labels, nt)
-    infra.train <-  assemble.dataset.train(infra, split$train, split$test, labels, nt)
     ### Computing AKS ----
     source("functions/compute_aki.R")
     source("functions/compute_aik.R")
     net.aik <- compute.aik(net.train %>% adj.to.df(), nodes)
     net.aki <- compute.aki(net.train %>% adj.to.df(), split$ntrn)
-    supra.aik <- compute.aik(supra.train %>% adj.to.df(), nodes)
-    supra.aki <- compute.aki(supra.train %>% adj.to.df(), split$ntrn)
-    infra.aik <- compute.aik(infra.train %>% adj.to.df(), nodes)
-    infra.aki <- compute.aki(infra.train %>% adj.to.df(), split$ntrn)
     ### Get similarities ----
     net.sim <- get.mean.similarity(list(net=net.train, aik=net.aik, aki=net.aki), split$ntrn, nodes)
-    supra.sim <- get.mean.similarity(list(net=supra.train, aik=supra.aik, aki=supra.aki), split$ntrn, nodes)
-    infra.sim <- get.mean.similarity(list(net=infra.train, aik=infra.aik, aki=infra.aki), split$ntrn, nodes)
     ### Get similarity train ----
     net.sim.train <- net.sim[,1:split$ntrn] %>% standardize.matrix.reference(net.sim) %>% adj.to.df()
-    supra.sim.train <- supra.sim[,1:split$ntrn] %>% standardize.matrix.reference(supra.sim) %>% adj.to.df()
-    infra.sim.train <- infra.sim[,1:split$ntrn] %>% standardize.matrix.reference(infra.sim) %>% adj.to.df()
     ## Assembling test data ----
     id.test <- assemble.dataset.test(ids, split$train, split$test, labels, nt)
     net.test <- assemble.dataset.test(net, split$train, split$test, labels, nt) %>% adj.to.df()
     dist.test <-  assemble.dataset.test(distances, split$train, split$test, labels, nt)  %>% adj.to.df()
     ### Get similarity test and standardize it ----
     net.sim.test <- net.sim[,(split$ntrn+1):nt] %>% standardize.matrix.reference(net.sim) %>% adj.to.df()
-    supra.sim.test <- supra.sim[,(split$ntrn+1):nt] %>% standardize.matrix.reference(supra.sim) %>% adj.to.df()
-    infra.sim.test <- infra.sim[,(split$ntrn+1):nt] %>% standardize.matrix.reference(infra.sim) %>% adj.to.df()
     ## Form train data ----
     net.train <- net.train %>% adj.to.df()
     nozeros.train <- !net.train$weight == 0
     train.data <- data.frame(
       w=net.train$weight[nozeros.train],
       sim=net.sim.train$weight[nozeros.train],
-      # supra=supra.sim.train$weight[nozeros.train],
-      # infra=infra.sim.train$weight[nozeros.train],
       dist=dist.train$weight[nozeros.train]
     )
     matrix.train <- id.train
@@ -174,8 +152,6 @@ get.dataset <- function(net, nt, nodes, labels, split, inst, filename="1",save=T
     test.data <- data.frame(
       w=net.test$weight,
       sim=net.sim.test$weight,
-      # supra=supra.sim.test$weight,
-      # infra=infra.sim.test$weight,
       dist=dist.test$weight
     )
     matrix.test <- id.test
