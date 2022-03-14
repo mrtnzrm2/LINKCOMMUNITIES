@@ -14,11 +14,18 @@ plot.xgb.residuals <- function(serie, inst, subfolder="", suffix=""){
   print(purb)
   dev.off()
   # Plot RMAE ----
+ rmae.table <- dplyr::tibble(
+    w=c("-2.5", "2.5-4.5", "4.5-"),
+    rmae=c(data%>%dplyr::filter(w<2.5)%>%dplyr::pull(.rmae) %>% mean() %>% round(2),
+           data%>%dplyr::filter(w>=2.5, w<=4.5)%>%dplyr::pull(.rmae) %>% mean()%>%round(2),
+           data%>%dplyr::filter(w>4.5)%>%dplyr::pull(.rmae) %>% mean()%>%round(2))
+    )
   p.wrmae <- ggplot2::ggplot(data, ggplot2::aes(w, .rmae))+
     ggplot2::geom_point(size=0.1)+
     ggplot2::xlab("w")+
     ggplot2::ylab("Relative prediction error")+
     ggplot2::stat_smooth(method = "loess", color="orange", fill="orange")+
+    ggplot2::annotation_custom(gridExtra::tableGrob(rmae.table), xmin = 5, xmax = 5.5, ymin = 2, ymax = 2.25)+
     ggplot2::theme_bw()
   p.distrmae <- ggplot2::ggplot(data, ggplot2::aes(stdist, .rmae))+
     ggplot2::geom_point(size=0.1)+
