@@ -147,7 +147,6 @@ run.xgb.regression <- function(net, nt, nodes, labels, serie, inst, kfold=3, wor
 }
 
 link.classification <- function(dataset, serie, inst, subfolder=""){
-  dir.create("%s/%s/Regression/XGBOOST/%s/%i" %>% sprintf(inst$plot, inst$folder, subfolder, serie), showWarnings = F)
   source("functions/df_to_adj.R")
   train.w <- rsample::training(dataset) %>% dplyr::pull(w)
   train.sim <- rsample::training(dataset)  %>% dplyr::pull(sim)
