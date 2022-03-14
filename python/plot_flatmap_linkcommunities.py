@@ -28,16 +28,14 @@ def getAreaIndex(area, labels):
         return index[0]
     return -1
 
-if len(sys.argv) != 9:
+if len(sys.argv) != 7:
     print("> [U] : {} [merged] [model] [imputation] [distance] [resolution] [num link coms] [link type]".format(sys.argv[0]))
     print(">       [merged] : true/false, if true the merged data is used")
     print(">       [model] : Which Latent variable was used?")
     print(">       [imputation] : Original data or imputed version")
     print(">       [distance] : imputation method (choose from phys or trac)")
-    print(">       [resolution] : Step when the hybrid model started")
     print(">       [num link coms] : Number of link communities")
-    print(">       [link type] : Either: h, or v")
-    print(">       [link community] : the membership that you want to look")
+    print(">       [link type] : Either: h, v, or wsbm")
  
 
     sys.exit(0)
@@ -46,10 +44,8 @@ merged = sys.argv[1]
 model = sys.argv[2]
 imputation = sys.argv[3]
 distance = sys.argv[4]
-resolution = sys.argv[5]
-k = sys.argv[6]
-ltype = sys.argv[7]
-commship = sys.argv[8]
+k = sys.argv[5]
+ltype = sys.argv[6]
 
 print("> good work needs good preparation")
 
@@ -115,7 +111,7 @@ end = end.astype(int)
 print("> defining colormap and limits")
 lower = 0
 upper = 1
-cm = copy.copy(matplotlib.cm.get_cmap("Set2"))
+cm = copy.copy(matplotlib.cm.get_cmap("Set3"))
 
 print("> creating layout")
 fsize = 10 
@@ -147,19 +143,20 @@ for index in range(totalAreas):
     else:
         color = tuple((.5, .5, .5, 0.3))
 
-    if(nodeNames[aindex] in dorsal):
-        pattern = '///'
-    elif(nodeNames[aindex] in ventral):
-        pattern = '\\\\\\'
-    else:
-        pattern = ''
+    # if(nodeNames[aindex] in dorsal):
+    #     pattern = '///'
+    # elif(nodeNames[aindex] in ventral):
+    #     pattern = '\\\\\\'
+    # else:
+    #     pattern = ''
+    pattern = ''
 
-    if nodeNames[aindex] in dorsal:
-        axFlatmap.add_patch(plt.Polygon(vertices, closed=True, edgecolor=[1, 0, 0, 0.5], linewidth=.5, facecolor=color, hatch=pattern))
-    elif nodeNames[aindex] in ventral:
-        axFlatmap.add_patch(plt.Polygon(vertices, closed=True, edgecolor=[0, 0, 1, 0.5], linewidth=.5, facecolor=color, hatch=pattern))
-    else:
-        axFlatmap.add_patch(plt.Polygon(vertices, closed=True, edgecolor=[1, 1, 1], linewidth=.5, facecolor=color, hatch=pattern))
+    # if nodeNames[aindex] in dorsal:
+    #     axFlatmap.add_patch(plt.Polygon(vertices, closed=True, edgecolor=[1, 0, 0, 0.5], linewidth=.5, facecolor=color, hatch=pattern))
+    # elif nodeNames[aindex] in ventral:
+    #     axFlatmap.add_patch(plt.Polygon(vertices, closed=True, edgecolor=[0, 0, 1, 0.5], linewidth=.5, facecolor=color, hatch=pattern))
+    # else:
+    axFlatmap.add_patch(plt.Polygon(vertices, closed=True, edgecolor=[1, 1, 1], linewidth=.5, facecolor=color, hatch=pattern))
 
 for d in data:
     axFlatmap.text(data[d][0], data[d][1], d, fontsize=4)
