@@ -47,7 +47,7 @@ make.xgb.residuals <- function(series, inst, subfolder="", on=T){
   if (on){
     source("functions/plot_xgb_residuals.R")
     print("** Plotting xgb residuals")
-    plot.xgb.residuals(serie, inst, subfolder=subfolder)
+    plot.xgb.residuals(series, inst, subfolder=subfolder)
   } else
     print("** No xgb residuals")
 }
@@ -95,11 +95,25 @@ run.xgb.exp.regression <- function(net, nt, nodes, labels, serie, inst, kfold=3,
     print("** No experiment")
 }
 
-make.linkcommunities <- function(train, test, serie, inst, subfolder="", on=T){
+make.linkcommunities <- function(train, test, K.coords, serie, inst, subfolder="", on=T){
   if (on){
     print("*** Plotting link communities in the dis-sim space")
     source("functions/plot_linkcomm_validation.R")
-    plot.linkcommm.validation(train, test, serie, inst, subfolder=subfolder)
+    plot.linkcommm.validation(train, test, K.coords, serie, inst, subfolder=subfolder)
+  } else
+    print("*** No dis-sim space")
+}
+
+make.zeros <- function(test, serie, inst, subfolder="", on=T){
+  if (on){
+    print("*** Plotting seros in sim-dist space")
+    # Some plots ----
+    test$zero <- ifelse(test$w == 0, "B", "A")
+    p <- ggplot2::ggplot(test, ggplot2::aes(dist, sim, color=zero))+
+      ggplot2::geom_point(size=0.5)
+    png("%s/%s/Regression/XGBOOST/%s/%i/zerot_test.png" %>% sprintf(inst$plot, inst$folder, subfolder, serie), width = 6, height =5 , res = 200, units = "in")
+    print(p)
+    dev.off()
   } else
     print("*** No dis-sim space")
 }
@@ -156,34 +170,34 @@ link.classification <- function(dataset, serie, inst, subfolder=""){
   test.sim <- rsample::testing(dataset)  %>% dplyr::pull(sim)
   test.dist <- rsample::testing(dataset)  %>% dplyr::pull(dist)
   ntest <- rsample::testing(dataset) %>% nrow()
+  
   # Create distance from the training set ----
-  Rcpp::sourceCpp("../cpp/distance_matrix.cpp")
   dist3d.train <- disma3d(train.w, train.dist, train.sim, ntrain) %>% unlist() %>% pracma::Reshape(ntrain, ntrain)
   hclust.train <- hclust(dist3d.train %>% as.dist() , method = "complete")
-  ## Process hclust ----
-  source('functions/process_hclust_distance.R')
-  hclust.process <- process.hclust.dist(hclust.train)
-  ## Plot SS parameter ----
-  make.parameters(hclust.process, inst,  subfolder=subfolder, on=T)
+  
   # Assign id to train set ----
-  k <- hclust.process %>% dplyr::filter(SS == max(SS, na.rm = T)) %>% dplyr::pull(K) %>% unique() %>% sort()
-  if (length(k) > 1)
-    k <- k[1]
-  data.train <- rsample::training(dataset) %>% dplyr::bind_cols(dplyr::tibble(id=cutree(hclust.train, k=k)))
+  k <- 2
+  train.ids <- cutree(hclust.train, k=k)
   ## Create distance matrix between train and test set ----
-  dist2d.train.test <- disma2d_truncated(train.dist, train.sim, test.dist, test.sim, ntrain, ntest)
-  ## Find final cluster ----
-  Rcpp::sourceCpp("../cpp/constrained_hcluster.cpp")
-  test.communities <- constrained_hclust(dist2d.train.test, data.train$id, ntrain, ntest, k) %>% unlist() %>% pracma::Reshape(ntest, k) %>% t()
-  # Assign id to test set ----
-  data.test <- rsample::testing(dataset)
-  data.test$id <- 0
-  for (i in 1:k)
-    data.test$id[test.communities[i,] == 1] <- i
-  data.train$id <- data.train$id %>% as.character()
-  data.test$id <- data.test$id %>% as.character()
-  ## Plot dis-sim train-test communities ----
-  make.linkcommunities(data.train, data.test, serie, inst, subfolder = subfolder, on=T)
+  dist2list <- distma2centroid(
+    train.dist,
+    train.sim,
+    test.dist,
+    test.sim,
+    train.ids,
+    ntrain, ntest,
+    k)
+  dist2centroid <- dist2list[[1]] %>% unlist() %>% pracma::Reshape(max(c(ntrain, ntest)), 2*k) %>% t()
+  ## Put centroids relative distances into dataframes
+  k.train <- dist2centroid[1:k,] %>% t() %>% dplyr::as_tibble()
+  colnames(k.train) <- paste("id", 1:k, sep = "_")
+  k.train <- k.train[k.train$id_1 != 0,]
+  k.test <- dist2centroid[(k+1):(2*k),] %>% t() %>% dplyr::as_tibble()
+  colnames(k.test) <- paste("id", 1:k, sep = "_")
+  k.test <- k.test[k.test$id_1 != 0,]
+  # Assign relative distances to train & test set ----
+  data.train <- rsample::training(dataset) %>% dplyr::bind_cols(k.train)
+  data.test <- rsample::testing(dataset)  %>% dplyr::bind_cols(k.test)
   # Save data ----
   data <- structure(
     list(data = data.train %>% dplyr::bind_rows(data.test),
@@ -192,15 +206,12 @@ link.classification <- function(dataset, serie, inst, subfolder=""){
     ),
     class = "rsplit"
   )
-  data.train$cat <- "train"
-  data.test$cat <- "test"
-  dat <- data.train %>% dplyr::bind_rows(data.test)
-  p <- ggplot2::ggplot(dat, ggplot2::aes(w))+
-    ggplot2::facet_grid(cat ~ id)+
-    ggplot2::geom_histogram()
-  png("%s/%s/Regression/XGBOOST/%s/%i/hist_id.png" %>% sprintf(inst$plot, inst$folder, subfolder, serie), width = 15, height =10 , res = 200, units = "in")
-  print(p)
-  dev.off()
+  
+  ## Plot dis-sim train  communities ----
+  data.train$id <- train.ids
+  K.coords <- dist2list[[2]] %>% unlist() %>% pracma::Reshape(2,k) %>% t()
+  make.linkcommunities(data.train, data.test, K.coords, serie, inst, subfolder = subfolder, on=T)
+  make.zeros(data.test, serie, inst, subfolder=subfolder, on=F)
   return(data)
 }
 
@@ -210,12 +221,14 @@ run.xgb.regression.lc <- function(net, nt, nodes, labels, serie, inst, kfold=3, 
     source("functions/setup_datasets.R")
     source("functions/explore_xgboost_parameters.R")
     source("functions/save_work_regression.R")
+    Rcpp::sourceCpp("../cpp/distance_matrix.cpp")
+    Rcpp::sourceCpp("../cpp/constrained_hcluster.cpp")
     print("* Starting xgb regression")
     # Start experiment ----
-    for (i in 1:1){
+    for (i in 1:30){
       ## Kfold loop ----
       split.kfold <- split.dataset.kfold(nt, kfold = kfold)
-      for (j in 1:1){
+      for (j in 1:kfold){
         print("** Trial: %i kfold: %i" %>% sprintf(i,j))
         ### Assemble split ----
         split <- assemble.split(split.kfold, j)
@@ -230,13 +243,13 @@ run.xgb.regression.lc <- function(net, nt, nodes, labels, serie, inst, kfold=3, 
           parsnip::boost_tree(
             mode = "regression",
             trees = 500,
-            min_n = 15,
-            tree_depth =  3,
+            min_n = 4,
+            tree_depth =  1,
             learn_rate = 0.01,
             loss_reduction = 0.01
           ) %>%
           parsnip::set_engine("xgboost", objective = "reg:squarederror")
-        # ### Save ----
+        ### Save ----
         save.work.regression(xgboost.model, datasets, ids, inst, mats, serie=serie, trial=i, fold=j)
       }
     }
@@ -251,12 +264,14 @@ run.xgb.exp.regression.lc <- function(net, nt, nodes, labels, serie, inst, kfold
     source("functions/get_optimized_xgboost.R")
     source("functions/explore_xgboost_parameters.R")
     source("functions/save_work_experiment.R")
+    Rcpp::sourceCpp("../cpp/distance_matrix.cpp")
+    Rcpp::sourceCpp("../cpp/constrained_hcluster.cpp")
     print("** Starting experiment")
     # Start experiment ----
-    for (i in 1:1){
+    for (i in 1:30){
       ## Kfold loop ----
       split.kfold <- split.dataset.kfold(nt, kfold = kfold)
-      for (j in 1:1){
+      for (j in 1:kfold){
         ### Assemble split ----
         split <- assemble.split(split.kfold, j)
         ## Get datasets ----
@@ -270,7 +285,7 @@ run.xgb.exp.regression.lc <- function(net, nt, nodes, labels, serie, inst, kfold
         xgboost.model <- xmodel$model %>% tune::finalize_model(xmodel$parameters)
         ## Plots ----
         make.train.rmse(datasets, xgboost.model, inst, subfolder="Residuals_EXP", on=F)
-        explore.xgboost.parameters(xgboost.model, datasets, mats, ids, inst, subfolder="Residuals_EXP", suffix=serie %>% as.character(), on=T)
+        explore.xgboost.parameters(xgboost.model, datasets, mats, ids, inst, subfolder="Residuals_EXP", suffix=serie %>% as.character(), on=F)
         ## Save ----
         save.work.experiment(xmodel, datasets, ids, serie, inst, mats, suffix = i)
       }
@@ -314,10 +329,10 @@ main <- function(inst){
   
   # Experiment ----
   run.xgb.exp.regression(net, nt, nodes, labels, serie, inst, work=F)
-  run.xgb.exp.regression.lc(net, nt, nodes, labels, serie, inst, work=T)
+  run.xgb.exp.regression.lc(net, nt, nodes, labels, serie, inst, work=F)
   # Run ----
   run.xgb.regression(net, nt, nodes, labels, serie, inst, kfold=3, work=F)
-  run.xgb.regression.lc(net, nt, nodes, labels, serie, inst, kfold=3, work=F)
+  run.xgb.regression.lc(net, nt, nodes, labels, serie, inst, kfold=3, work=T)
   # Plots ----
   make.experiment.parameters(serie, inst, subfolder="SerieAnalysis", on=F)
   make.xgb.residuals(serie, inst, subfolder = "Residuals", on=F)
