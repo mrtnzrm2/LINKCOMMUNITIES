@@ -3,12 +3,12 @@ save.work.regression <- function(
   serie=0, trial=0, fold=0) {
   source("functions/eval_tools.R")
   source("functions/num-rmae.R")
-  train_model <- model$train
-  test_model <- model$test
-  test_prediction <- test_model %>%
+  train_pred <- model$train_pred
+  test_pred <- model$test_pred
+  test_prediction <- test_pred %>%
     tune::collect_predictions() %>%
     dplyr::group_by(id)
-  train_rmae <- train_model %>%
+  train_rmae <- train_pred %>%
     tune::collect_metrics()
   train_rmae <- train_rmae$mean[1]
   source("functions/rmae.R")
