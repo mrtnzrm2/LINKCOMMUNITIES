@@ -2,15 +2,15 @@ save.work.experiment <- function(
   model, datasets, ids, inst, mats,
   serie=0, trial=0, fold=0) {
   source("functions/eval_tools.R")
-  train_model <- model$train
-  test_model <- model$test
+  train_pred <- model$train_pred
+  test_pred <- model$test_pred
   best_score <- xgboost::xgb.importance(
-            model = train_model$fit) %>%
+            model = train_pred$fit) %>%
             dplyr::as_tibble()
-  test_prediction <- test_model %>%
+  test_prediction <- test_pred %>%
     tune::collect_predictions() %>%
     dplyr::group_by(id)
-  train_rmae <- train_model %>%
+  train_rmae <- train_pred %>%
     tune::collect_metrics()
   train_rmae <- train_rmae$mean[1]
   # Ensemble parameters ----
