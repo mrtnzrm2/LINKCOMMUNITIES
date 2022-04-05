@@ -32,8 +32,6 @@ get.mean.similarity <- function(df, ntrn, ntgt, nsrc=107) {
   net <- df$net
   AIK <- df$aik
   AKI <- df$aki
-  AIK[diag(nsrc) == 1] <- NA
-  AKI[diag(ntrn) == 1] <- NA
   similarity <- matrix(0, nrow = nsrc, ncol = ntgt)
   # First quadrant ----
   for (i in 1:ntrn) {
@@ -51,6 +49,8 @@ get.mean.similarity <- function(df, ntrn, ntgt, nsrc=107) {
       Ni <- which(net[i, ] > 0)
       Nj <- which(net[j, ] > 0)
       NiNj <- Ni[Ni %in% Nj]
+      if (length(NiNj) == 0)
+          next
       jacp.aik <- AIK[i, j]
       jacp.aki <- mean(AKI[j, NiNj], na.rm = T)
       similarity[i, j] <- mean(c(jacp.aki, jacp.aik))
@@ -62,6 +62,8 @@ get.mean.similarity <- function(df, ntrn, ntgt, nsrc=107) {
       Ni <- which(net[i, ] > 0)
       Nj <- which(net[j, ] > 0)
       NiNj <- Ni[Ni %in% Nj]
+      if (length(NiNj) == 0)
+          next
       jacp.aik <- AIK[i, j]
       jacp.aki <- mean(AKI[i, NiNj], na.rm = T)
       similarity[i, j] <- mean(c(jacp.aki, jacp.aik))
@@ -70,12 +72,16 @@ get.mean.similarity <- function(df, ntrn, ntgt, nsrc=107) {
   # Forth quadrant ----
   for (i in (ntrn + 1):nsrc) {
     for (j in (ntrn + 1):ntgt) {
-      Ni <- which(net[i, ] > 0)
-      Nj <- which(net[j, ] > 0)
-      NiNj <- Ni[Ni %in% Nj]
-      jacp.aik <- AIK[i, j]
-      jacp.aki <- mean(AKI[NiNj, NiNj], na.rm = T)
-      similarity[i, j] <- mean(c(jacp.aki, jacp.aik))
+      if (i != j) {
+        Ni <- which(net[i, ] > 0)
+        Nj <- which(net[j, ] > 0)
+        NiNj <- Ni[Ni %in% Nj]
+        if (length(NiNj) == 0)
+          next
+        jacp.aik <- AIK[i, j]
+        jacp.aki <- mean(AKI[NiNj, NiNj], na.rm = T)
+        similarity[i, j] <- mean(c(jacp.aki, jacp.aik))
+      }
     }
   }
   return(similarity)
@@ -89,153 +95,403 @@ col.sum <- function(A, N) {
   return(x)
 }
 
-standardize.matrix <- function(matrix) {
-  matrix[matrix == 0] <- NA
-  mean.matrix <- mean(matrix, na.rm = T)
-  sd.matrix <- sd(matrix, na.rm = T)
-  matrix <- (matrix -  mean.matrix) / sd.matrix
-  matrix[is.na(matrix)] <- 0
-  return(matrix)
+assemble.dataset.fln_dist <- function(net, train, test, labels, N) {
+  train_labs <- labels[train]
+  test_labs <- labels[test]
+  ec_labs <- c(train_labs, test_labs)
+  noec_labs <- c(ec_labs, labels[(N + 1):length(labels)])
+  net %>%
+    as.data.frame()
+  colnames(net) <- labels[1:N]
+  rownames(net) <- labels
+  net <- net[noec_labs, ec_labs]
+  net_train <- net[, train_labs] %>%
+    adj.to.df()
+  net_test <- net[, test_labs] %>%
+    adj.to.df()
+  ntrn <- train %>%
+    length()
+  train_features <- matrix(
+    0, nrow(net_train), 2 * ntrn
+  )
+  test_features <- matrix(
+    0, nrow(net_test), 2 * ntrn
+  )
+  for (i in seq_len(nrow(net_train))) {
+    train_features[i, 1:ntrn] <- net[
+      net_train$source[i], seq_len(ntrn)
+    ]
+    train_features[i, (ntrn + 1):(2 * ntrn)] <- net[
+      net_train$target[i], seq_len(ntrn)
+    ]
+  }
+  for (i in seq_len(nrow(net_test))) {
+    test_features[i, 1:ntrn] <- net[
+      net_test$source[i], seq_len(ntrn)
+    ]
+    test_features[i, (ntrn + 1):(2 * ntrn)] <- net[
+      net_test$target[i] + ntrn, seq_len(ntrn)
+    ]
+  }
+  return(
+    list(
+      train = net_train %>%
+        dplyr::pull(weight),
+      test = net_test %>%
+        dplyr::pull(weight),
+      features_train = train_features %>%
+        dplyr::as_tibble(),
+      features_test = test_features %>%
+        dplyr::as_tibble()
+    )
+  )
 }
-
-standardize.matrix.reference <- function(matrix, ref) {
-  ref[ref == 0] <- NA
-  matrix[matrix == 0] <- NA
-  mean.ref <- mean(ref, na.rm = T)
-  sd.ref <- sd(ref, na.rm = T)
-  matrix <- (matrix -  mean.ref) / sd.ref
-  matrix[is.na(matrix)] <- 0
-  return(matrix)
-}
-
-get.dataset <- function(
-  net, nt, nodes, labels, split, inst,
-  filename="1",save=T) {
-  if (save) {
-    # Separate training and test set ----
-    source("functions/df_to_adj.R")
-    ids <- with(net, data.frame(
-      source = source, target = target, weight = id)
-    ) %>%
-      df.to.adj()
-    ids <- ids[, 1:nt]
-    net <- net %>%
-      df.to.adj()
-    net <- net[, 1:nt]
-    source("functions/get_tracto2016.R")
-    distances <- get.tracto2016(labels)
-    distances <- distances[, 1:nt]
-    distances <- standardize.matrix(distances)
-    ## Assembling train data ----
-    source("functions/adj_to_df.R")
-    id.train <- assemble.dataset.train(
-      ids, split$train, split$test, labels, nt
-    )
-    net.train <- assemble.dataset.train(
-      net, split$train, split$test, labels, nt
-    )
-    dist.train <- assemble.dataset.train(
-      distances, split$train, split$test, labels, nt
-    ) %>%
-      adj.to.df()
-    ### Computing AKS ----
-    source("functions/compute_aki.R")
-    source("functions/compute_aik.R")
-    net.aik <- compute.aik(
-      net.train %>%
-        adj.to.df(),
-      nodes
-    )
-    net.aki <- compute.aki(
-      net.train %>%
-        adj.to.df(),
-      split$ntrn
-    )
-    ### Get similarities ----
-    net.sim <- get.mean.similarity(
-      list(
-        net = net.train, aik = net.aik, aki = net.aki
-      ),
-      split$ntrn, nodes
-    )
-    ### Get similarity train ----
-    net.sim.train <- net.sim[, 1:split$ntrn] %>%
-      standardize.matrix.reference(net.sim) %>%
-        adj.to.df()
-    ## Assembling test data ----
-    id.test <- assemble.dataset.test(
-      ids, split$train, split$test, labels, nt
-    )
-    net.test <- assemble.dataset.test(
-      net, split$train, split$test, labels, nt
-    ) %>%
-      adj.to.df()
-    dist.test <-  assemble.dataset.test(
-      distances, split$train, split$test, labels, nt
-    )  %>%
-      adj.to.df()
-    ### Get similarity test and standardize it ----
-    net.sim.test <- net.sim[, (split$ntrn+1):nt] %>%
-      standardize.matrix.reference(net.sim) %>%
-      adj.to.df()
-    ## Form train data ----
-    net.train <- net.train %>%
-      adj.to.df()
-    train.data <- data.frame(
-      w = net.train$weight,
-      sim = net.sim.train$weight,
-      dist = dist.train$weight
-    )
-    matrix.train <- id.train
-    id.train <- id.train %>%
-      adj.to.df() %>%
-      dplyr::filter(weight > 0) %>%
-      dplyr::pull(weight)
-    ## Form test data ----
-    test.data <- data.frame(
-      w = net.test$weight,
-      sim = net.sim.test$weight,
-      dist = dist.test$weight
-    )
-    matrix.test <- id.test
-    id.test <- id.test %>%
-      adj.to.df() %>%
-      dplyr::filter(weight > 0) %>%
-      dplyr::pull(weight)
-    ## Save train and test data ----
-    df <- list(
-      train = train.data,
-      test = test.data,
-      ids = list(
-        train = id.train, test = id.test
-      ),
-      matids = list(
-        train = matrix.train, test = matrix.test
-      ),
-      split = split
-    )
-    # saveRDS(
-    #   df,
-    #   "../RDS/imputation/%s/dataset/%s.rds" %>%
-    #     sprintf(inst$common, filename)
-    # )
-  } else
-    df <- readRDS(
-      "../RDS/imputation/%s/dataset/%s.rds" %>%
-        sprintf(inst$common, filename)
-    )
+get.dataset.fln_dist <- function(
+  net, nt, nodes, labels, split, inst) {
+  # Separate training and test set ----
+  source("functions/df_to_adj.R")
+  source("functions/adj_to_df.R")
+  source("functions/standardized.R")
+  #*** Ids from nodesxnt matrix v
+  ids <- with(net, data.frame(
+    source = source, target = target, weight = id)
+  ) %>%
+    #*** to nodesxnt matrix v
+    df.to.adj()
+  ids <- ids[, 1:nt]
+  #*** net here is a data frame v
+  net <- net %>%
+    #*** to nodesxnt matrix v
+    df.to.adj()
+  #*** nodesxnt matrix v
+  net <- net[, 1:nt]
+  source("functions/get_tracto2016.R")
+  distances <- get.tracto2016(labels)
+  #*** self-loops na introduced v
+  distances <- standardized.diag(distances, nodes)
+  #*** nodesxnt size matrix v
+  distances <- distances[, 1:nt]
+  ## Assembling train data ----
+  #*** nodesxntrn size matrix v
+  id_train <- assemble.dataset.train(
+    ids, split$train, split$test, labels, nt
+  )
+  #*** nodesxntrn size matrix v
+  dist_train <- assemble.dataset.train(
+    distances, split$train, split$test, labels, nt
+  ) %>%
+    #*** to data frame v
+    adj.to.df()
+  ## Assembling test data ----
+  #*** nodesx(nt-ntrn) size matrix
+  id_test <- assemble.dataset.test(
+    ids, split$train, split$test, labels, nt
+  )
+  #*** nodesx(nt-ntrn) size matrix v
+  dist_test <-  assemble.dataset.test(
+    distances, split$train, split$test, labels, nt
+  )  %>%
+    #*** to data frame v
+    adj.to.df()
+  # Get train and test set data and features ----
+  assembled_data <- assemble.dataset.fln_dist(
+    net, split$train, split$test, labels, nt
+  )
+  #*** train and test weights as list v
+  #*** zeros and self-loops included v
+  train_weight <- assembled_data$train
+  test_weight <- assembled_data$test
+  #*** Features matrices v
+  features_train <- assembled_data$features_train
+  features_test <- assembled_data$features_test
+  # Build up train and test datasets ----
+  #*** train set v
+  data.train <- train_weight %>%
+    dplyr::bind_cols(dist_train$weight)
+  colnames(data.train) <- c("w", "dist")
+  data.train <- data.train %>%
+    dplyr::bind_cols(features_train)
+  #*** Take out all zeros from train set v
+  data.train <- data.train[data.train$w > 0, ]
+  # Train ids as matrix and list ----
+  matrix_train <- id_train
+  id_train <- id_train %>%
+    adj.to.df() %>%
+    dplyr::filter(weight > 0) %>%
+    dplyr::pull(weight)
+  #*** Test set v
+  data.test <- test_weight %>%
+    dplyr::bind_cols(dist_test$weight)
+  colnames(data.test) <- c("w", "dist")
+  data.test <- data.test %>%
+    dplyr::bind_cols(features_test)
+  #*** Take out self_loops from test set v
+  self_loops <- is.na(dist_test$weight)
+  data.test <- data.test[!self_loops, ]
+  # Test ids as matrix and list ----
+  matrix_test <- id_test
+  id_test <- id_test %>%
+    adj.to.df() %>%
+    dplyr::pull(weight)
+  id_test <- id_test[!self_loops]
+  ## Save train and test data ----
   data <- structure(
     list(
-      data = df$train %>%
-        rbind(df$test) %>%
+      data = data.train %>%
+        rbind(data.test) %>%
         dplyr::as_tibble(),
-      in_id = nrow(df$train) %>%
+      in_id = nrow(data.train) %>%
         seq_len(),
-      out_id = (nrow(df$train) + 1):(nrow(df$train) + nrow(df$test))
+      out_id = (nrow(data.train) + 1):(nrow(data.train) + nrow(data.test))
     ),
     class = "rsplit"
   )
   return(list(
-    data = data, ids = df$ids, matids = df$matids)
+      data = data,
+      ids = list(
+        train = id_train, test = id_test
+      ),
+      matids = list(
+        train = matrix_train, test = matrix_test
+      )
+    )
+  )
+}
+
+get.dataset.sim_dist <- function(
+  net, nt, nodes, labels, split, inst, zero=F) {
+  ## Train set does not have any zero
+  ## Test set does not have self-loops
+  # Separate training and test set ----
+  source("functions/df_to_adj.R")
+  source("functions/standardized.R")
+  #*** Ids from nodesxnt matrix v
+  ids <- with(net, data.frame(
+    source = source, target = target, weight = id)
+  ) %>%
+    #*** to nodesxnt matrix v
+    df.to.adj()
+  ids <- ids[, 1:nt]
+  #*** net here is a data frame v
+  net <- net %>%
+    #*** to nodesxnt matrix v
+    df.to.adj()
+  #*** nodesxnt matrix v
+  net <- net[, 1:nt]
+  source("functions/get_tracto2016.R")
+  distances <- get.tracto2016(labels)
+  #*** self-loops na introduced v
+  distances <- divide_max(distances, nodes)
+  #*** nodesxnt size matrix v
+  distances <- distances[, 1:nt]
+  ## Assembling train data ----
+  source("functions/adj_to_df.R")
+  #*** nodesxntrn size matrix v
+  id_train <- assemble.dataset.train(
+    ids, split$train, split$test, labels, nt
+  )
+  #*** nodesxntrn size matrix v
+  net_train <- assemble.dataset.train(
+    net, split$train, split$test, labels, nt
+  )
+  #*** nodesxntrn size matrix v
+  dist_train <- assemble.dataset.train(
+    distances, split$train, split$test, labels, nt
+  ) %>%
+    #*** to data frame v
+    adj.to.df()
+  ### Computing AKS ----
+  source("functions/compute_aki.R")
+  source("functions/compute_aik.R")
+  #*** nodesxnodes size matrix v
+  net.aik <- compute.aik(
+    net_train %>%
+      adj.to.df(),
+    nodes
+  )
+  #*** ntrnxntrn size matrix v
+  net.aki <- compute.aki(
+    net_train %>%
+      adj.to.df(),
+    split$ntrn
+  )
+  ### Get similarities ----
+  #*** nodesxnt size matrix v
+  net.sim <- get.mean.similarity(
+    list(
+      net = net_train, aik = net.aik, aki = net.aki
+    ),
+    split$ntrn, nt
+  ) %>%
+    #***  block diag self-loops na introduced v
+    standardized.block.diag(nt)
+  ### Get similarity train ----
+  #*** nodesxntrn size matrix v
+  net_sim_train <- net.sim[, 1:split$ntrn] %>%
+      adj.to.df()
+  ## Assembling test data ----
+  #*** nodesx(nt-ntrn) size matrix
+  id_test <- assemble.dataset.test(
+    ids, split$train, split$test, labels, nt
+  )
+  #*** nodesx(nt-ntrn) size matrix v
+  net_test <- assemble.dataset.test(
+    net, split$train, split$test, labels, nt
+  ) %>%
+    #*** to data frame v
+    adj.to.df()
+  #*** nodesx(nt-ntrn) size matrix v
+  dist_test <-  assemble.dataset.test(
+    distances, split$train, split$test, labels, nt
+  )  %>%
+    #*** to data frame v
+    adj.to.df()
+  ### Get similarity test and standardize it ----
+  #*** nodesx(nt-ntrn) size matrix v
+  net_sim_test <- net.sim[, (split$ntrn + 1):nt] %>%
+    #*** to data frame v
+    adj.to.df()
+  ## Form train data ----
+  #*** nodesxntrn size matrix v
+  net_train <- net_train %>%
+    #*** to data frame v
+    adj.to.df()
+  # With zeros or without zeros ----
+  obj <- get_zeros(
+    net_train, net_sim_train, dist_train, id_train,
+    net_test, net_sim_test, dist_test, id_test,
+    split, on = zero
+  )
+  data <- obj$data
+  train_data <- data$train
+  test_data <- data$test
+  id <- obj$id
+  id_train <- id$train
+  id_test <- id$test
+  mat <- obj$matrix
+  matrix_train <- mat$train
+  matrix_test <- mat$test
+  st <- obj$st
+  train_st <- st$train
+  test_st <- st$test
+  ## Save train and test data ----
+  data <- structure(
+    list(
+      data = train_data %>%
+        rbind(test_data) %>%
+        dplyr::as_tibble(),
+      in_id = nrow(train_data) %>%
+        seq_len(),
+      out_id = (nrow(train_data) + 1):(nrow(train_data) + nrow(test_data))
+    ),
+    class = "rsplit"
+  )
+  return(list(
+      data = data,
+      ids = list(
+        train = id_train, test = id_test
+      ),
+      matids = list(
+        train = matrix_train, test = matrix_test
+      ),
+      st = list(
+        train = train_st,
+        test = test_st
+      )
+    )
+  )
+}
+
+get_zeros <- function(
+  net_train, net_sim_train, dist_train, id_train,
+  net_test, net_sim_test, dist_test, id_test,
+  split, on=T
+  ) {
+  if (on) {
+    train_data <- data.frame(
+      w = net_train$weight,
+      sim = net_sim_train$weight,
+      dist = dist_train$weight
+    )
+    train_st <- data.frame(
+      source = net_sim_train$source,
+      target = net_sim_train$target
+    )
+    # Train ids as matrix and list ----
+    matrix_train <- id_train
+    id_train <- id_train %>%
+      adj.to.df() %>%
+      dplyr::pull(weight)
+    ## Form test data ----
+    test_data <- data.frame(
+      w = net_test$weight,
+      sim = net_sim_test$weight,
+      dist = dist_test$weight
+    )
+    test_st <- data.frame(
+      source = net_sim_test$source,
+      target = net_sim_test$target
+    )
+    # Test ids as matrix and list ----
+    matrix_test <- id_test
+    id_test <- id_test %>%
+      adj.to.df() %>%
+      dplyr::pull(weight)
+  } else {
+    # Take out zeros ----
+    zeros <- net_train$w == 0
+    train_data <- data.frame(
+      w = net_train$weight[!zeros],
+      sim = net_sim_train$weight[!zeros],
+      dist = dist_train$weight[!zeros]
+    )
+    train_st <- data.frame(
+      source = net_sim_train$source[!zeros],
+      target = net_sim_train$target[!zeros]
+    )
+    # Train ids as matrix and list ----
+    matrix_train <- id_train
+    id_train <- id_train %>%
+      adj.to.df() %>%
+      dplyr::filter(weight > 0) %>%
+      dplyr::pull(weight)
+    ## Form test data ----
+    ### Take out self-loops from test set ----
+    self_loops <- is.na(net_sim_test$weight)
+    test_data <- data.frame(
+      w = net_test$weight[!self_loops],
+      sim = net_sim_test$weight[!self_loops],
+      dist = dist_test$weight[!self_loops]
+    )
+    test_st <- data.frame(
+      source = net_sim_test$source[!self_loops],
+      target = net_sim_test$target[!self_loops] + split$ntrn
+    )
+    # Test ids as matrix and list ----
+    matrix_test <- id_test
+    id_test <- id_test %>%
+      adj.to.df() %>%
+      dplyr::pull(weight)
+    id_test <- id_test[!self_loops]
+  }
+  return(
+    list(
+      data = list(
+        train = train_data,
+        test = test_data
+      ),
+      id = list(
+        train = id_train,
+        test = id_test
+      ),
+      matrix = list(
+        train = matrix_train,
+        test = matrix_test
+      ),
+      st = list(
+        train = train_st,
+        test = test_st
+      )
+    )
   )
 }
