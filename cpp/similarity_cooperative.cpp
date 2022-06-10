@@ -5,8 +5,11 @@
 #include <sstream>
 #include <math.h>
 #include <iomanip>
+#include <Rcpp.h>
 
 using namespace std;
+
+// [[Rcpp::plugins(cpp14)]]
 
 vector<vector<long double> > read_csv(string &fname, bool &header){
 	vector<vector<long double> > content;
@@ -179,7 +182,11 @@ vector<vector<long double> > up_triangular_rows(vector<vector<long double> > &ma
     return dist_h;
 }
 
-vector<vector<long double> > calculate_sim_matrix(vector<vector<long double> > &matrix, vector<vector<long double> > &aik, vector<vector<long double> > &aki, const int &N, const int &leaves){
+vector<vector<long double> > calculate_sim_matrix(
+	vector<vector<long double> > &matrix,
+	vector<vector<long double> > &aik,
+	vector<vector<long double> > &aki,
+	const int &N, const int &leaves) {
 
 	vector<vector<int_fast32_t> > id_matrix = create_id_matrix(matrix, N);
 	vector<vector<long double> > leave_matrix(leaves, vector<long double>(leaves,-1));
@@ -264,19 +271,18 @@ void nlog10_matrix(vector<vector<T> > &matrix, const I &N){
     }
 }
 
-
-int main(){
-
+// [[Rcpp::export]]
+vector<vector<long double> > similarity_cooperative(
+	string csv_path,
+	const string average,
+	const int N,
+	const int leaves
+){
+	// Start ----
 	bool header;
 	string out_path;
-	string csv_path;
-
-	const string average = "ALPHA";
-	const int N = 107;
-	const int leaves = 6880; // 6880 6868
 
 	header = false;
-	csv_path = "../CSV/merged/imputation/tracto2016/normal/fln.csv"; // ../CSV/merged/imputation/tracto2016/zz_model/NONULL/
 	cout << "Loading fln\n";
     vector<vector<long double> > fln_matrix = read_csv(csv_path, header);
 	cout << "Finished\n";
@@ -293,14 +299,7 @@ int main(){
 	cout << "Compute similarity matrix\n";
 	vector<vector<long double> > sim_matrix = calculate_sim_matrix(fln_matrix, aik, aki, N, leaves);
 	cout << "Finished\n";
-
-	cout << "Saving\n";
-	out_path = "../CSV/merged/similarity/tracto2016/normal/sim_full_l10.csv";
-	out_csv(sim_matrix, out_path, leaves);
-	sim_matrix = up_triangular_rows(sim_matrix, leaves);
-	out_path = "../CSV/merged/similarity/tracto2016/normal/sim_l10.csv";
-	out_csv_up_triangular(sim_matrix, out_path, leaves);
 	cout << "End\n";
 
-    return 0;
+  return sim_matrix;
 }
