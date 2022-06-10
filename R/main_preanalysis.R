@@ -1,254 +1,361 @@
-make.aks.matrix <- function(AKS, bourder, colors, labels, regions, inst, preffix="", suffix="", on=T){
-  if (on){
+make.aks.matrix <- function(
+  AKS, bourder, colors, labels, regions, inst,
+  preffix="", suffix="", on=T) {
+  if (on) {
     print("** Plotting Aks matrix")
     source("functions/plot_aks_matrix.R")
-    plot.aks.matrix(AKS, bourder, colors, labels, regions, path=inst$plot, foldername=inst$mainfolder, subfolder="Preprocessing", preffix=preffix, suffix=suffix)
+    plot.aks.matrix(
+      AKS, bourder, colors, labels, regions,
+      path = inst$plot, foldername = inst$mainfolder,
+      subfolder = "Preprocessing", preffix = preffix, suffix = suffix
+    )
   } else
     print("** No Aks matrix")
 }
 
-make.aki.aik.density <- function(AKI, AIK, labels, regions, inst, suffix="", on=T){
-  if (on){
+make.aki.aik.density <- function(
+  AKI, AIK, labels, regions, inst,
+  suffix="", on=T) {
+  if (on) {
     print("** Plotting Aks density")
     source("functions/plot_aki_aik_density.R")
-    plot.aki.aik.density(AKI, AIK, labels, regions, path=inst$plot, foldername=inst$mainfolder, subfolder="Preprocessing", suffix=suffix)
+    plot.aki.aik.density(
+      AKI, AIK, labels, regions,
+      path = inst$plot, foldername = inst$mainfolder,
+      subfolder = "Preprocessing", suffix = suffix
+    )
   } else
     print("** No Aks density")
 }
 
-make.aki.aik.scatter <- function(net, AKI, AIK, nt, labels, inst, suffix="", on=T){
-  if (on){
+make.aki.aik.scatter <- function(
+  net, AKI, AIK, nt, labels, inst,
+  suffix="", on=T) {
+  if (on) {
     print("** Plotting scatter plots")
     source("functions/plot_aki_aik_scatter.R")
-    plot.aki.aik.scatter(net, AKI, AIK, nt, labels, path=inst$plot, foldername=inst$mainfolder, subfolder="Preprocessing", suffix=suffix)
+    plot.aki.aik.scatter(
+      net, AKI, AIK, nt, labels,
+      path = inst$plot, foldername = inst$mainfolder,
+      subfolder = "Preprocessing", suffix = suffix
+    )
   } else
     print("** No scatter plots")
 }
 
-make.fln.histogram <- function(net, inst, on=T){
-  if (on){
+make.fln.histogram <- function(net, inst, on=T) {
+  if (on) {
     print("Plotting fln histogram")
     source("functions/plot_fln_histogram.R")
-    plot.fln.histogram(net, path=inst$plot, foldername=inst$mainfolder, subfolder="Preprocessing")
+    plot.fln.histogram(
+      net,
+      path = inst$plot, foldername = inst$mainfolder,
+      subfolder = "Preprocessing"
+    )
   } else
     print("No fln histogram")
 }
 
-make.performance <- function(df, labels, inst, on=T){
-  if (on){
+make.performance <- function(df, labels, inst, on=T) {
+  if (on) {
     print("** Plotting performance")
     source("functions/plot_performance.R")
-    plot.performance(df$net, df$aik.supra, df$aik.infra, df$aik, df$supra, df$infra, labels, path=inst$plot, foldername=inst$mainfolder, subfolder="Preprocessing")
+    plot.performance(
+      df$net, df$aik.supra, df$aik.infra, df$aik, df$supra, df$infra, labels,
+      path = inst$plot, foldername = inst$mainfolder,
+      subfolder = "Preprocessing"
+    )
   } else
     print("**No performance")
 }
 
-col.sum <- function(A, N){
+make.features <- function(
+  net, distance, net.aik, net.aki, nt, nodes, names, inst, on=T
+  ) {
+  if (on) {
+    source("functions/plot_features.R")
+    print("** Plotting features")
+    net[net == 0] <- NA
+    distance <- distance %>%
+      df.to.adj() %>%
+      standardized.block.diag(nt)
+    net.aik <- net.aik %>%
+      standardized.diag(nt)
+    net.aki <- net.aki %>%
+      standardized.diag(nt)
+    plot.features(
+      nt, names,
+      net, distance, net.aik, net.aki,
+      path = inst$plot,
+      folder = inst$folder,
+      subfolder = "PreAnalysis"
+    )
+  } else
+    print("** No features")
+}
+
+col.sum <- function(A, N) {
   x <- c()
-  for ( i in 1:N){
-    x <- c(x, sum(A[,i], na.rm = T))
+  for ( i in 1:N) {
+    x <- c(x, sum(A[, i], na.rm = T))
   }
   return(x)
 }
 
-get.datasets <-  function(net, labels, nt, inst, filename=""){
-  source("functions/adj_to_df.R")
-  source("functions/df_to_adj.R")
-  # Ensemble data ----
-  net <- net[net$target <= nt,] %>%
-    df.to.adj() %>% 
-    adj.to.df() %>% 
-    dplyr::mutate(weight=ifelse(weight > 0, weight, NA))
-  source("functions/get_supra.R")
-  supra <- get.supra(labels)
-  supra[supra == 0] <- NA
-  # supra <- supra/col.sum(supra, nt)
-  supra <- adj.to.df(supra) %>% 
-    dplyr::mutate(weight=log10(weight))
-  source("functions/get_infra.R")
-  infra <- get.infra(labels) 
-  infra[infra==0] <- NA
-  # infra <- infra/col.sum(infra, nt)
-  infra <- adj.to.df(infra) %>% 
-    dplyr::mutate(weight=log10(weight))
-  source("functions/get_tracto2016.R")
-  distance <- get.tracto2016(labels) 
-  distance <- distance[,1:nt] %>%
-    adj.to.df()
-
-  data <- dplyr::tibble(
-    w=net %>%
-      dplyr::pull(weight),
-    supra=supra %>%
-      dplyr::pull(weight),
-    infra=infra %>%
-      dplyr::pull(weight),
-    distance=distance %>%
-      dplyr::pull(weight)
-    )
-  
-  data <- do.call(data.frame, data %>% lapply(function(x) replace(x, x == 0, NA)))
-  
-  print(skimr::skim(data))
-  
-  p <- data %>% dplyr::select_if(is.numeric) %>%
-    GGally::ggpairs()
-  
-  png("%s/%s/PreAnalysis/describe_%s.png" %>% sprintf(inst$plot, inst$folder, filename), width = 8, height = 8, res = 200, units = "in")
-  print(p)
-  dev.off()
-  
-  return(list(net=net, supra=supra, infra=infra, distance=distance))
-}
-
-get.mean.similarity <- function(df, ntrn, ntgt, nsrc=107){
-  
+get.mean.similarity <- function(df, ntrn, ntgt, nsrc=107) {
   net <- df$net
   AIK <- df$aik
   AKI <- df$aki
   AIK[diag(nsrc) == 1] <- NA
   AKI[diag(ntrn) == 1] <- NA
   similarity <- matrix(0, nrow = nsrc, ncol = ntgt)
-  
-  for (i in 1:ntrn){
-    for (j in 1:ntrn){
-      if (i != j){
-        jacp.aik <- AIK[i,j]
-        jacp.aki <- AKI[i,j]
-        similarity[i,j] <- mean(c(jacp.aki, jacp.aik))
+  for (i in 1:ntrn) {
+    for (j in 1:ntrn) {
+      if (i != j) {
+        jacp.aik <- AIK[i, j]
+        jacp.aki <- AKI[i, j]
+        similarity[i, j] <- mean(c(jacp.aki, jacp.aik))
       }
     }
   }
-  
-  for (i in (ntrn+1):nsrc){
-    for (j in 1:ntrn){
-      Ni <- which(net[i,] > 0)
-      Nj <- which(net[j,] > 0)
+  for (i in (ntrn + 1):nsrc) {
+    for (j in 1:ntrn) {
+      Ni <- which(net[i, ] > 0)
+      Nj <- which(net[j, ] > 0)
       NiNj <- Ni[Ni %in% Nj]
-      jacp.aik <- AIK[i,j]
+      jacp.aik <- AIK[i, j]
       jacp.aki <- mean(AKI[j, NiNj], na.rm = T)
-      similarity[i,j] <- mean(c(jacp.aki, jacp.aik))
+      similarity[i, j] <- mean(c(jacp.aki, jacp.aik))
     }
   }
   return(similarity)
 }
 
-transform.datasets <- function(dataset, nodes, nt, inst, filename=""){
-  # Define datasets ----
-  net <- dataset$net  %>% df.to.adj()
-  net[is.na(net)] <- 0
-  supra <- dataset$supra  %>% df.to.adj()
-  supra[is.na(supra)] <- 0
-  infra <- dataset$infra  %>% df.to.adj()
-  infra[is.na(infra)] <- 0
-  distance <- dataset$distance
-  # Compute Aks ----
+get.datasets <-  function(net, labels, nt, inst, filename="") {
+  source("functions/adj_to_df.R")
+  source("functions/df_to_adj.R")
+  # Ensemble data ----
+  ## Get data ----
+  net <- net[net$target <= nt, ] %>%
+    df.to.adj() %>%
+    adj.to.df()
+  source("functions/get_tracto2016.R")
+  distance <- get.tracto2016(labels)
+  distance <- distance[, 1:nt] %>%
+    adj.to.df()
+  return(
+    list(
+      net = net,
+      distance = distance
+    )
+  )
+}
+
+transform.datasets <- function(dataset, nodes, nt, inst, filename="") {
   source("functions/compute_aik.R")
   source("functions/compute_aki.R")
-  net.aik <- compute.aik(net %>% adj.to.df(), nodes)
-  net.aki <- compute.aki(net %>% adj.to.df(), nt)
-  supra.aik <- compute.aik(supra %>% adj.to.df(), nodes)
-  supra.aki <- compute.aki(supra %>% adj.to.df(), nt)
-  infra.aik <- compute.aik(infra %>% adj.to.df(), nodes)
-  infra.aki <- compute.aki(infra %>% adj.to.df(), nt)
-  # Compute similarity matrices ----
   source("functions/df_to_adj.R")
   source("functions/adj_to_df.R")
-  net.sim <- get.mean.similarity(
-    list(
-      net=net,
-      aik=net.aik, 
-      aki=net.aki
-      ), nt, nt) %>% adj.to.df()
-  supra.sim <- get.mean.similarity(
-    list(
-      net=supra, 
-      aik=supra.aik,
-      aki=supra.aki
-      ), nt, nt) %>% adj.to.df()
-  infra.sim <- get.mean.similarity(
-    list(
-      net=infra,
-      aik=infra.aik,
-      aki=infra.aki
-      ), nt, nt) %>% adj.to.df()
-  
-  data <- dplyr::tibble(
-    w=net %>% adj.to.df() %>% dplyr::pull(weight),
-    supra=supra.sim %>% dplyr::pull(weight),
-    infra=infra.sim %>% dplyr::pull(weight),
-    sim=net.sim %>% dplyr::pull(weight),
-    distance=distance %>% dplyr::pull(weight)
+  source("functions/standardized.R")
+  # Define datasets ----
+  net <- dataset$net  %>%
+    df.to.adj()
+  distance <- dataset$distance
+  # Compute Aks ----
+  net.aik <- net %>%
+    adj.to.df() %>%
+    compute.aik(nt)
+  net.aki <- net %>%
+    adj.to.df() %>%
+    compute.aki(nt)
+  # Plot features ----
+  make.features(
+    net, distance, net.aik, net.aki, nt, nodes,
+    c("w_standard", "dist", "jaccp_src", "jaccp_tgt"), inst,
+    on = T
   )
-  
-  data <- do.call(data.frame, data %>% lapply(function(x) replace(x, x == 0, NA)))
-  
-  print(skimr::skim(data))
-  
-  p <- data %>% dplyr::select_if(is.numeric) %>%
-    GGally::ggpairs()
-  
-  png("%s/%s/PreAnalysis/describe_%s.png" %>% sprintf(inst$plot, inst$folder, filename), width = 8, height = 8, res = 200, units = "in")
-  print(p)
+}
+
+compare_target_similarity <- function(dataset, nodes, nt, inst, filename="") {
+  source("functions/compute_aki.R")
+  source("functions/compute_aki_ec.R")
+  source("functions/df_to_adj.R")
+  source("functions/adj_to_df.R")
+  source("functions/standardized.R")
+  # Define datasets ----
+  net <- dataset$net  %>%
+    df.to.adj()
+  # Compute Aks ----
+  net_aki <- net %>%
+    adj.to.df() %>%
+    compute.aki(nt) %>%
+    adj.to.df() %>%
+    dplyr::filter(source < nt)
+  net_aki_ec <- net %>%
+    adj.to.df() %>%
+    compute.aki.ec(nt) %>%
+    adj.to.df() %>%
+    dplyr::filter(source < nt)
+  # Compute error ----
+  tb <- dplyr::tibble(
+    error = net_aki$weight - net_aki_ec$weight
+  )
+  print(
+    shapiro.test(tb$error)
+  )
+  # Compute statistics ----
+  tb_stat <- tb %>%
+    dplyr::summarise(
+      sd = sd(error) %>%
+      round(3),
+      mean = mean(error) %>%
+      round(3)
+    )
+  # Plot ----
+  p <- tb  %>%
+  ggplot2::ggplot(
+    ggplot2::aes(error)
+  ) +
+  ggplot2::geom_histogram(
+    ggplot2::aes(y = ..density..),
+    color = "gray",
+    bins = 30
+  ) +
+  ggplot2::xlab("Error") +
+  ggplot2::geom_text(
+    ggplot2::aes(x = -0.1, y = 10),
+    label = "mean = %.3f, sd = %.3f" %>%
+      sprintf(
+        tb_stat$mean,
+        tb_stat$sd
+      )
+  ) +
+  ggplot2::theme_classic()
+  return(p)
+}
+
+target_similarity_source <- function(dataset, nodes, nt, inst, filename="") {
+  source("functions/compute_aki.R")
+  source("functions/compute_aik.R")
+  source("functions/df_to_adj.R")
+  source("functions/adj_to_df.R")
+  source("functions/standardized.R")
+  # Define datasets ----
+  net <- dataset$net  %>%
+    df.to.adj()
+  # Compute Aks ----
+  net_target_sim <- net %>%
+    adj.to.df() %>%
+    compute.aki(nt) %>%
+    adj.to.df() %>%
+    dplyr::filter(source < nt)
+  net_source_sim <- net %>%
+    adj.to.df() %>%
+    compute.aik(nt) %>%
+    adj.to.df() %>%
+    dplyr::filter(source < nt)
+  # Compute error ----
+  p <- dplyr::tibble(
+    target = net_target_sim$weight,
+    source = net_source_sim$weight
+  )  %>%
+  ggplot2::ggplot(
+    ggplot2::aes(source, target)
+  ) +
+  ggplot2::geom_point(size = 0.5) +
+  ggplot2::xlab("Source similarity") +
+  ggplot2::ylab("Target similarity") +
+  ggplot2::geom_smooth(
+    method = "lm",
+    se = F
+  ) +
+  ggpubr::stat_cor(
+    ggplot2::aes(
+      label = paste(..r.label.., ..rr.label.., ..p.label.., sep = "~`,`~")
+    ),
+    label.x.npc = 0.5
+  ) +
+  ggplot2::theme_classic()
+  return(p)
+}
+
+target_similarity_argument <- function(p, q, inst) {
+  plot <- cowplot::plot_grid(
+    p, q, ncol = 2, nrow = 1, labels = "AUTO"
+  )
+  png(
+    "%s/%s/%s/argument_target_similarity.png" %>%
+      sprintf(inst$plot, inst$folder, "PreAnalysis"),
+    width = 12, height = 5, units = "in", res = 200
+  )
+  print(plot)
   dev.off()
 }
 
-main <- function(inst){
+main <- function(inst) {
   library(magrittr)
   source("functions/adj_to_df.R")
-  
-  mode <- 'ALPHA'
   nlog10 <- T
-  fln.name <- 'fln'
   nt <- 50
   nodes <- 107
-  suffix <- "_EC"
-  
   inst$mainfolder <- paste(inst$folder, "PreAnalysis", sep = "/")
-  dir.create(sprintf('%s/%s', inst$plot, inst$mainfolder), showWarnings = F)
-  
+  dir.create(
+    sprintf("%s/%s", inst$plot, inst$mainfolder),
+    showWarnings = F
+  )
   # Load data ----
-  source('functions/load_net.R')
+  source("functions/load_net.R")
   netx <- load.net(inst)
   net <- netx$net
-  leaves <- netx$leaves
   labels <- netx$labels
   source("functions/format_labels.R")
-  labels <- labels %>% format.labels()
-  
-  if (nlog10){
+  labels <- labels %>%
+    format.labels()
+  if (nlog10) {
     net$weight[net$weight != 0] <- log10(net$weight[net$weight != 0]) + 7
   }
-  
   source("functions/get_regions_colors.R")
   cr <- get.regions.colors(labels, nt)
-  
   # Analyzing data ----
-  datasets <- get.datasets(net, labels, nt, inst, filename="default_data")
-  transform.datasets(datasets, nodes, nt, inst, filename = "transform_data")
+  datasets <- get.datasets(net, labels, nt, inst, filename = "default_data")
+  # transform.datasets(datasets, nodes, nt, inst, filename = "transform_data")
+  # target_similarity_argument(
+  #   compare_target_similarity(datasets, nodes, nt, inst),
+  #   target_similarity_source(datasets, nodes, nt, inst),
+  #   inst
+  # )
+  source("functions/measure_similarity_dispersion_b.R")
+  measure_similarity_dispersion_b(net, nodes, nt, labels, inst)
   # Plotting ----
-
 }
 
+setwd("/Users/jmarti53/Documents/Projects/LINKCOMMUNITIES/MAC/220126/R")
+### HEAD ----
+folder <- "merged"
+distances <- "original"
+model <- "normal"
+csv_name <- "fln"
+labels_name <- "rlabels"  # imputation_labels  rlabels
+# merged/imputation/tracto2016/zz_model/   91x40
+common_path <- paste(distances, model, sep = "/")
+csv_path <- paste(
+  folder, "imputation", common_path, paste0(csv_name, ".csv"),
+  sep = "/"
+)
+labels_path <- paste(
+  folder, "labels", common_path, paste0(labels_name, ".csv"),
+  sep = "/"
+)
+plot_path <- "../plots"
+path_list <- list(csv = csv_path,
+                  labels = labels_path,
+                  plot = plot_path,
+                  common = common_path,
+                  folder = folder,
+                  model = model,
+                  distances = distances)
 
-### HEAD ###
-folder <- 'merged'
-distances <- 'original'
-model <- 'normal'
-csv.name <- 'fln'
-labels.name <- 'rlabels'  # imputation_labels  rlabels
-
-common.path <- paste(distances, model, sep = '/')
-csv.path <- paste(folder, 'imputation', common.path, paste0(csv.name,'.csv'), sep = '/') # merged/imputation/tracto2016/zz_model/   91x40
-labels.path <- paste(folder, 'labels', common.path, paste0(labels.name,'.csv'), sep = '/')
-plot.path <- '../plots'
-
-path.list <- list(csv=csv.path, 
-                  labels=labels.path, 
-                  plot=plot.path, 
-                  common=common.path,
-                  folder=folder,
-                  model=model,
-                  distances=distances)
-
-main(path.list)
+main(path_list)
+### Plot link by areas by distance with color on the weights
+### Change mean to root squared sum
+### In and out similarities colored by weight
