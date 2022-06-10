@@ -90,7 +90,7 @@ vector<vector<int> > constrained_hclust(vector<vector<double> > &distance, vecto
         pre = print_progress(i, N_test, pre);
         min_dist = INT32_MAX;
         for (int k=0; k < K; k++){
-            dist = single_linkage(distance, communities_train[k], i);
+            dist = complete_linkage(distance, communities_train[k], i);
             if (dist < min_dist){
                 com = k;
                 min_dist = dist;
