@@ -89,7 +89,7 @@ make_parameters <- function(features, inst, subfolder="", on=T) {
     plot.process.parameters(
       inst$plot, inst$folder, features,
       subfolder = subfolder
-    )  
+    )
   } else
     print("*** No parameters")
 }
@@ -157,7 +157,11 @@ main <- function(inst) {
   source("functions/run_xgb_regression.R")
   run_xgb_regression(
     net, nt, nodes, labels, serie, inst,
-    kfold = 3, work = F
+    kfold = 5, work = F
+  )
+  run_xgb_regression_crc(
+    net, nt, nodes, labels, serie, subserie, inst,
+    kfold = 5, work = F
   )
   source("functions/run_xgb_regression_lc.R")
   run_xgb_regression_lc(
@@ -177,7 +181,7 @@ main <- function(inst) {
   source("functions/run_ogr_regression.R")
   run_ogr_regression(
     net, nt, nodes, labels, serie, inst,
-    kfold = 3, work = T
+    kfold = 5, work = T
   )
   run_ogr_regression_crc(
     net, nt, nodes, labels, serie, subserie, inst,
