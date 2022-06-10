@@ -1,40 +1,62 @@
-transform_list_inverse <- function(A, p, N) {
-  K <- length(p)
-  for (i in 1:N) {
-    if (!is.na(A[i])) {
-        for (k in 1:(K - 1)) {
-            if (A[i] >= p[k] && A[i] < p[k + 1]) {
-            A[i] <- K - 1 - k
-            break
-            }
-        }
-    }
-  }
-  return(A)
-}
-
-categorize <- function(v, k) {
-  p <- rep(0, k + 1)
-  p[2:k] <- unname(
-    quantile(
-      v[v != 0],
-      na.rm = T, probs = pracma::linspace(1 / k, 1, k)
-    )
-  )[1:(k - 1)]
-  p[k + 1] <- Inf
-  v[v == 0] <- NA
-  v <- transform_list_inverse(v, p, length(v)) + 1
-  v[is.na(v)] <- 0
-  return(v)
-}
-
 colSd <- function(x)
   sqrt(rowMeans((t(x) - colMeans(x))^2) * ((dim(x)[1]) / (dim(x)[1] - 1)))
+
+with_naive_categories <- function(data, st, categories, serie, inst, save=T) {
+  source("functions/df_to_adj.R")
+  source("functions/adj_to_df.R")
+  # weight <- rsample::training(data)
+  # print(st$train %>% head())
+  # print(weight %>% head())
+  weight <-  rsample::training(data) %>%
+    dplyr::pull(w) %>%
+    naive_categories(
+      rsample::training(data) %>%
+        dplyr::pull(dist),
+      categories, serie, inst,
+      subfolder = "VariableEvolution",
+      save = save
+    )
+  return(
+    st$train %>%
+      with(
+        dplyr::tibble(
+          source = source,
+          target = target,
+          weight = weight
+          )
+      ) %>%
+      df.to.adj()
+  )
+}
+
+with_stan_categories <- function(data, st, serie, categories, inst, save=T) {
+  source("functions/df_to_adj.R")
+  return(
+    st$train %>%
+      with(
+        dplyr::tibble(
+          source = source,
+          target = target,
+          weight = rsample::training(data) %>%
+            dplyr::pull(w) %>%
+            stan_categories(
+              rsample::training(data) %>%
+                dplyr::pull(dist),
+              categories, serie, inst,
+              subfolder = "VariableEvolution",
+              save = save
+            )
+          )
+      ) %>%
+      df.to.adj()
+  )
+}
 
 latent_distance_process_matrix <- function(data, st, serie, inst, save=T) {
   source("functions/df_to_adj.R")
   source("functions/adj_to_df.R")
   source("functions/stan_categories.R")
+  source("functions/naive_categories.R")
   # Values ----
   categories <- 5
   latent_dimensions <- 3
@@ -42,21 +64,12 @@ latent_distance_process_matrix <- function(data, st, serie, inst, save=T) {
   # Separate data ----
   ## Find categories
   ## Train ----
-  train_data <- st$train %>%
-    with(
-      dplyr::tibble(
-        source = source,
-        target = target,
-        weight = rsample::training(data) %>%
-          dplyr::pull(w) %>%
-          stan_categories(
-            rsample::training(data) %>%
-              dplyr::pull(dist),
-            categories, serie, inst,
-            subfolder = "VariableEvolution")
-          )
-    ) %>%
-    df.to.adj()
+  # train_data <- with_stan_categories(
+  #   data, st, serie, categories, inst, save = T
+  # )
+  train_data <- with_naive_categories(
+    data, st, categories, serie, inst, save = T
+  )
   train_dist <- st$train %>%
     with(
       dplyr::tibble(
@@ -89,7 +102,7 @@ latent_distance_process_matrix <- function(data, st, serie, inst, save=T) {
     ) %>%
     df.to.adj()
   col_test <- dim(test_data)[2]
-  ## Create matrice ----
+  ## Create matrices ----
   data_matrix <- matrix(0, nrow = nodes_network, ncol = col_train + col_test)
   data_matrix[, 1:col_train] <- train_data
   data_matrix[, (col_train + 1):(col_train + col_test)] <- test_data
@@ -101,50 +114,70 @@ latent_distance_process_matrix <- function(data, st, serie, inst, save=T) {
   dist_matrix[, 1:col_train] <- train_dist
   dist_matrix[, (col_train + 1):(col_train + col_test)] <- test_dist
   col_data <-  dim(data_matrix)[2]
+  ### sigma ----
+  sigma <- 2
   if (save) {
-    # Format data ----
-    stan_set <- list(
-      K = categories,
-      d = latent_dimensions,
-      M = nodes_network,
-      N = col_data,
-      mat = data_matrix,
-      w = no_links,
-      D = dist_matrix
-    )
-    stan_sample <- rstan::stan(
-      file = "STAN/zz_org_old.stan",
-      model_name = "zz_org_model_old",
-      data = stan_set,
-      iter = 500,
-      control = list(
-        adapt_delta = 0.94,
-        max_treedepth = 8
-      ),
-      verbose = F
-    )
-    print(
-      stan_sample, pars = c(
-        "sigma", "rho", "rho_s",
-        "b", "lp__", "asym[1,2]", "asym[2,1]"
+    while (sigma > 1) {
+      # Format data ----
+      stan_set <- list(
+        K = categories,
+        d = latent_dimensions,
+        M = nodes_network,
+        N = col_data,
+        mat = data_matrix,
+        w = no_links,
+        D = dist_matrix
       )
-    )
-    sampler_params <- rstan::get_sampler_params(stan_sample, inc_warmup = F)
-    summary(do.call(rbind, sampler_params), digits = 2) %>%
-      print()
-    information <- stan_sample %>%
-      rstan::extract()
-    saveRDS(
-      information,
-      "../RDS/imputation/original/normal/LatentDistance/4.rds"
-    )
-    sigma <- information$sigma %>%
-      mean()
-    asym <- information$asym %>%
-      apply(c(2, 3), mean)
-    asym_sd <- information$asym %>%
-      apply(c(2, 3), sd)
+      # CmdstanR ----
+      stan_model <- cmdstanr::cmdstan_model("STAN/zz_org_old.stan")
+      model_MCMC <- stan_model$sample(
+        data = stan_set,
+        parallel_chains = 4,
+        adapt_delta = 0.95,
+        max_treedepth = 9,
+        iter_warmup = 250,
+        iter_sampling = 250,
+      )
+      ### CmdstanR summary ----
+      print(
+        model_MCMC$summary(
+          variables = c(
+            "sigma", "rho", "rho_s",
+            "b", "lp__", "asym[1,2]", "asym[2,1]"
+          )
+        )
+      )
+      print(
+        model_MCMC$diagnostic_summary()
+      )
+      print(
+        model_MCMC$cmdstan_diagnose()
+      )
+      ### Mean and Sd -----
+      information <- model_MCMC$summary(
+        variables = c("sigma", "asym"),
+        "mean", "sd"
+      )
+      saveRDS(
+        information,
+        "../RDS/imputation/original/normal/LatentDistance/4.rds"
+      )
+      sigma <- information %>%
+        dplyr::filter(variable == "sigma") %>%
+        dplyr::pull(mean)
+    }
+    asym <- information %>%
+      dplyr::filter(grepl("asym", variable)) %>%
+      dplyr::pull(mean) %>%
+      pracma::Reshape(nodes_network, col_data)
+    asym_sd <- information %>%
+      dplyr::filter(grepl("asym", variable)) %>%
+      dplyr::pull(sd) %>%
+      pracma::Reshape(nodes_network, col_data)
+    source("functions/standardized.R")
     ldist <- (dist_matrix + asym) / sigma
+    ldist <- ldist %>%
+      standardized.block.diag()
     train_data <- rsample::training(data)
     train_data$dist <- ldist[, 1:col_train] %>%
       adj.to.df() %>%
@@ -179,14 +212,21 @@ latent_distance_process_matrix <- function(data, st, serie, inst, save=T) {
     information <- readRDS(
       "../RDS/imputation/original/normal/LatentDistance/4.rds"
     )
+    # Manually set up: col_data!!
     col_data <- 50
-    sigma <- information$sigma %>%
-      mean()
-    asym <- information$asym %>%
-      apply(c(2, 3), mean)
-    asym_sd <- information$asym %>%
-      apply(c(2, 3), sd)
+    sigma <- information$mean[information$variable == "sigma"]
+    asym <- information %>%
+      dplyr::filter(grepl("asym", variable, fixed = T)) %>%
+      dplyr::pull(mean) %>%
+      pracma::Reshape(nodes_network, col_data)
+    asym_sd <- information %>%
+      dplyr::filter(grepl("asym", variable, fixed = T)) %>%
+      dplyr::pull(sd) %>%
+      pracma::Reshape(nodes_network, col_data)
+    source("functions/standardized.R")
     ldist <- (dist_matrix + asym) / sigma
+    ldist <-  ldist %>%
+      standardized.block.diag()
     train_data <- rsample::training(data)
     train_data$dist <- ldist[, 1:col_train] %>%
       adj.to.df() %>%

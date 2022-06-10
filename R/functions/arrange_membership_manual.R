@@ -1,13 +1,11 @@
-arrange.membership.manual <- function(id){
-  for (i in 1:length(id)){
-    if (id[i] == 4)
-      id[i] <- 2
-    else if (id[i] == 3)
-      id[i] <- 4
-    else if (id[i] == 2)
-      id[i] <- 6
-    else if (id[i] == 6)
-      id[i] <- 3
+arrange.membership.manual <- function(id, arragement) {
+  for (i in seq_len(length(id))) {
+    for (name in names(arragement)) {
+      if (id[i] == as.numeric(name))
+        id[i] <- arragement[name]
+      else if (id[i] == arragement[name])
+        id[i] <- as.numeric(name)
+    }
   }
   return(id)
 }

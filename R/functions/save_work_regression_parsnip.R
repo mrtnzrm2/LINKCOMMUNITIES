@@ -1,4 +1,4 @@
-save.work.regression <- function(
+save_work_regression_parsnip <- function(
   model, datasets, ids, inst, mats,
   serie=0, trial=0, fold=0) {
   source("functions/eval_tools.R")
@@ -12,23 +12,23 @@ save.work.regression <- function(
     tune::collect_metrics()
   train_rmae <- train_rmae$mean[1]
   source("functions/rmae.R")
+  test_rmae <- rmae(rsample::testing(datasets)$w, test_prediction$.pred)
   print("RMAE ---> Train: %.3f    Test: %.3f" %>%
    sprintf(
      train_rmae,
-     rmae(rsample::testing(datasets)$w, test_prediction$.pred)
+     test_rmae
    )
   )
   # Ensemble regression
+  zeros <- rsample::testing(datasets)$w == 0
   regression_values <- dplyr::tibble(
-    w = rsample::testing(datasets)$w %>%
-      get.nonzero(mats$test),
-    pred = test_prediction$.pred %>%
-      get.nonzero(mats$test),
-    dist = rsample::testing(datasets)$dist %>%
-      get.nonzero(mats$test),
-    sim = rsample::testing(datasets)$sim %>%
-      get.nonzero(mats$test),
-    id = ids$test,
+    w = rsample::testing(datasets)$w[!zeros],
+    pred = test_prediction$.pred[!zeros],
+    dist = rsample::testing(datasets)$dist[!zeros],
+    # sim = rsample::testing(datasets)$sim[!zeros],
+    train_rmae = train_rmae,
+    test_rmae = test_rmae,
+    id = ids$test[!zeros],
     serie = serie,
     trial = trial,
     fold = fold

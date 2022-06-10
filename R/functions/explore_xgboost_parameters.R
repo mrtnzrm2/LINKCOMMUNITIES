@@ -64,7 +64,9 @@ explore.xgboost.parameters <- function(
     ) %>%
       knitr::kable() %>%
       print()
+    # Information ----
     # Graphs ----
+    ## Residuals ----
     source("functions/plot_diagnosis.R")
     print("* Residuals train")
     train_residuals <- train_prediction %>%
@@ -85,6 +87,7 @@ explore.xgboost.parameters <- function(
     dev.off()
     print("* Residuals test")
     test_residuals <- test_prediction %>%
+      dplyr::filter(w > 0) %>%
       dplyr::arrange(.pred) %>%
       dplyr::mutate(.resid = (w - .pred)) %>%
       dplyr::mutate(.stdresid = .resid / sd(.resid))
@@ -99,6 +102,18 @@ explore.xgboost.parameters <- function(
       width = 9, height = 8, res = 200, units = "in"
     )
     print(purb)
+    dev.off()
+    ## VIP
+    p.vip <- test_pred %>%
+    purrr::pluck(".workflow", 1) %>%
+    tune::extract_fit_parsnip() %>%
+    vip::vip()
+    png(
+      "%s/%s/Regression/XGBOOST/%s/vip_test%s.png" %>%
+      sprintf(inst$plot, inst$folder, subfolder, suffix),
+      width = 6, height = 5, res = 200, units = "in"
+    )
+    print(p.vip)
     dev.off()
   }
 }

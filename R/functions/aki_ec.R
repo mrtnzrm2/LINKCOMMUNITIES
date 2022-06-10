@@ -1,4 +1,5 @@
-aki <- function(net, self.loop = T, mode="") {
+aki_ec <- function(net, self.loop = T, mode="") {
+  net <- net[net$source <= 50, ]
   nodes.s <- max(net$source)
   nodes.t <- max(net$target)
   matrix <- matrix(0, nrow = nodes.t, ncol = nodes.s)

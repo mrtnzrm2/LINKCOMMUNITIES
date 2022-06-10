@@ -27,7 +27,6 @@ rmae <- yardstick::new_numeric_metric(
 #' @rdname rmae
 #' @export
 rmae.data.frame <- function(data, truth, estimate, na_rm = TRUE, ...) {
-  
   yardstick::metric_summarizer(
     metric_nm = "rmae",
     metric_fn = rmae_vec,
@@ -36,17 +35,18 @@ rmae.data.frame <- function(data, truth, estimate, na_rm = TRUE, ...) {
     estimate = !!dplyr::enquo(estimate),
     na_rm = na_rm
   )
-  
 }
 
 #' @export
 #' @rdname rmae
 rmae_vec <- function(truth, estimate, na_rm = TRUE, ...) {
-  
   rmae_impl <- function(truth, estimate) {
-    mean( abs((truth - estimate)/truth))
+    if (0 %in% truth) {
+      estimate <- estimate[truth != 0]
+      truth <- truth[truth != 0]
+    }
+    mean(abs((truth - estimate) / truth))
   }
-  
   yardstick::metric_vec_template(
     metric_impl = rmae_impl,
     truth = truth,
@@ -54,5 +54,4 @@ rmae_vec <- function(truth, estimate, na_rm = TRUE, ...) {
     na_rm = na_rm,
     cls = "numeric"
   )
-  
 }

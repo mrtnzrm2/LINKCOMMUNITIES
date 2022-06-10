@@ -34,15 +34,11 @@ get.mean.similarity <- function(df, ntrn, ntgt, nsrc=107) {
   AKI <- df$aki
   similarity <- matrix(0, nrow = nsrc, ncol = ntgt)
   # First quadrant ----
-  for (i in 1:ntrn) {
-    for (j in 1:ntrn) {
-      if (i != j) {
-        jacp.aik <- AIK[i, j]
-        jacp.aki <- AKI[i, j]
-        similarity[i, j] <- mean(c(jacp.aki, jacp.aik))
-      }
-    }
-  }
+  mean_exact_sim <- array(1, dim = c(ntrn, ntrn, 2))
+  mean_exact_sim[, , 1] <- AIK[1:ntrn, 1:ntrn]
+  mean_exact_sim[, , 2] <- AKI[1:ntrn, 1:ntrn]
+  similarity[1:ntrn, 1:ntrn] <- mean_exact_sim %>%
+    apply(c(1, 2), mean)
   # Third quadrant ----
   for (i in (ntrn + 1):nsrc) {
     for (j in 1:ntrn) {
@@ -87,6 +83,67 @@ get.mean.similarity <- function(df, ntrn, ntgt, nsrc=107) {
   return(similarity)
 }
 
+get.mean.similarity_2 <- function(df, ntrn, ntgt, nsrc=107) {
+  net <- df$net
+  AIK <- df$aik
+  AKI <- df$aki
+  similarity <- matrix(0, nrow = nsrc, ncol = ntgt)
+  # First quadrant ----
+  mean_exact_sim <- array(1, dim = c(ntrn, ntrn, 2))
+  mean_exact_sim[, , 1] <- AIK[1:ntrn, 1:ntrn]
+  mean_exact_sim[, , 2] <- AKI[1:ntrn, 1:ntrn]
+  similarity[1:ntrn, 1:ntrn] <- mean_exact_sim %>%
+    apply(c(1, 2), mean)
+  # Third quadrant ----
+  for (i in (ntrn + 1):nsrc) {
+    for (j in 1:ntrn) {
+      Ni <- which(net[i, ] > 0)
+      Nj <- which(net[j, ] > 0)
+      NiNj <- Ni[Ni %in% Nj]
+      if (length(NiNj) == 0) {
+        similarity[i, j] <- 0.043
+        next
+      }
+      jacp.aik <- AIK[i, j]
+      jacp.aki <- mean(AKI[j, NiNj], na.rm = T)
+      similarity[i, j] <- mean(c(jacp.aki, jacp.aik))
+    }
+  }
+  # Second quadrant ----
+  for (i in 1:ntrn) {
+    for (j in (ntrn + 1):ntgt) {
+      Ni <- which(net[i, ] > 0)
+      Nj <- which(net[j, ] > 0)
+      NiNj <- Ni[Ni %in% Nj]
+      if (length(NiNj) == 0) {
+        similarity[i, j] <- 0.043
+        next
+      }
+      jacp.aik <- AIK[i, j]
+      jacp.aki <- mean(AKI[i, NiNj], na.rm = T)
+      similarity[i, j] <- mean(c(jacp.aki, jacp.aik))
+    }
+  }
+  # Forth quadrant ----
+  for (i in (ntrn + 1):nsrc) {
+    for (j in (ntrn + 1):ntgt) {
+      if (i != j) {
+        Ni <- which(net[i, ] > 0)
+        Nj <- which(net[j, ] > 0)
+        NiNj <- Ni[Ni %in% Nj]
+        if (length(NiNj) == 0) {
+          similarity[i, j] <- 0.023
+          next
+        }
+        jacp.aik <- AIK[i, j]
+        jacp.aki <- mean(AKI[NiNj, NiNj], na.rm = T)
+        similarity[i, j] <- mean(c(jacp.aki, jacp.aik))
+      }
+    }
+  }
+  return(similarity)
+}
+
 col.sum <- function(A, N) {
   x <- c()
   for (i in 1:N) {
@@ -95,57 +152,6 @@ col.sum <- function(A, N) {
   return(x)
 }
 
-assemble.dataset.fln_dist <- function(net, train, test, labels, N) {
-  train_labs <- labels[train]
-  test_labs <- labels[test]
-  ec_labs <- c(train_labs, test_labs)
-  noec_labs <- c(ec_labs, labels[(N + 1):length(labels)])
-  net %>%
-    as.data.frame()
-  colnames(net) <- labels[1:N]
-  rownames(net) <- labels
-  net <- net[noec_labs, ec_labs]
-  net_train <- net[, train_labs] %>%
-    adj.to.df()
-  net_test <- net[, test_labs] %>%
-    adj.to.df()
-  ntrn <- train %>%
-    length()
-  train_features <- matrix(
-    0, nrow(net_train), 2 * ntrn
-  )
-  test_features <- matrix(
-    0, nrow(net_test), 2 * ntrn
-  )
-  for (i in seq_len(nrow(net_train))) {
-    train_features[i, 1:ntrn] <- net[
-      net_train$source[i], seq_len(ntrn)
-    ]
-    train_features[i, (ntrn + 1):(2 * ntrn)] <- net[
-      net_train$target[i], seq_len(ntrn)
-    ]
-  }
-  for (i in seq_len(nrow(net_test))) {
-    test_features[i, 1:ntrn] <- net[
-      net_test$source[i], seq_len(ntrn)
-    ]
-    test_features[i, (ntrn + 1):(2 * ntrn)] <- net[
-      net_test$target[i] + ntrn, seq_len(ntrn)
-    ]
-  }
-  return(
-    list(
-      train = net_train %>%
-        dplyr::pull(weight),
-      test = net_test %>%
-        dplyr::pull(weight),
-      features_train = train_features %>%
-        dplyr::as_tibble(),
-      features_test = test_features %>%
-        dplyr::as_tibble()
-    )
-  )
-}
 get.dataset.fln_dist <- function(
   net, nt, nodes, labels, split, inst) {
   # Separate training and test set ----
@@ -304,30 +310,31 @@ get.dataset.sim_dist <- function(
   source("functions/compute_aki.R")
   source("functions/compute_aik.R")
   #*** nodesxnodes size matrix v
-  net.aik <- compute.aik(
+  net_aik <- compute.aik(
     net_train %>%
       adj.to.df(),
     nodes
   )
   #*** ntrnxntrn size matrix v
-  net.aki <- compute.aki(
+  net_aki <- compute.aki(
     net_train %>%
       adj.to.df(),
     split$ntrn
   )
   ### Get similarities ----
   #*** nodesxnt size matrix v
-  net.sim <- get.mean.similarity(
+  net_sim <- get.mean.similarity_2(
     list(
-      net = net_train, aik = net.aik, aki = net.aki
+      net = net_train, aik = net_aik, aki = net_aki
     ),
     split$ntrn, nt
-  ) %>%
-    #***  block diag self-loops na introduced v
-    standardized.block.diag(nt)
+  ) 
+  # %>%
+  #   #***  block diag self-loops na introduced v
+  #   standardized.block.diag()
   ### Get similarity train ----
   #*** nodesxntrn size matrix v
-  net_sim_train <- net.sim[, 1:split$ntrn] %>%
+  net_sim_train <- net_sim[, 1:split$ntrn] %>%
       adj.to.df()
   ## Assembling test data ----
   #*** nodesx(nt-ntrn) size matrix
@@ -348,7 +355,7 @@ get.dataset.sim_dist <- function(
     adj.to.df()
   ### Get similarity test and standardize it ----
   #*** nodesx(nt-ntrn) size matrix v
-  net_sim_test <- net.sim[, (split$ntrn + 1):nt] %>%
+  net_sim_test <- net_sim[, (split$ntrn + 1):nt] %>%
     #*** to data frame v
     adj.to.df()
   ## Form train data ----
@@ -397,6 +404,12 @@ get.dataset.sim_dist <- function(
       st = list(
         train = train_st,
         test = test_st
+      ),
+      sim_df = list(
+        train = net_sim_train %>%
+          df.to.adj(),
+        test = net_sim_test %>%
+          df.to.adj()
       )
     )
   )
@@ -492,6 +505,58 @@ get_zeros <- function(
         train = train_st,
         test = test_st
       )
+    )
+  )
+}
+
+assemble.dataset.fln_dist <- function(net, train, test, labels, N) {
+  train_labs <- labels[train]
+  test_labs <- labels[test]
+  ec_labs <- c(train_labs, test_labs)
+  noec_labs <- c(ec_labs, labels[(N + 1):length(labels)])
+  net %>%
+    as.data.frame()
+  colnames(net) <- labels[1:N]
+  rownames(net) <- labels
+  net <- net[noec_labs, ec_labs]
+  net_train <- net[, train_labs] %>%
+    adj.to.df()
+  net_test <- net[, test_labs] %>%
+    adj.to.df()
+  ntrn <- train %>%
+    length()
+  train_features <- matrix(
+    0, nrow(net_train), 2 * ntrn
+  )
+  test_features <- matrix(
+    0, nrow(net_test), 2 * ntrn
+  )
+  for (i in seq_len(nrow(net_train))) {
+    train_features[i, 1:ntrn] <- net[
+      net_train$source[i], seq_len(ntrn)
+    ]
+    train_features[i, (ntrn + 1):(2 * ntrn)] <- net[
+      net_train$target[i], seq_len(ntrn)
+    ]
+  }
+  for (i in seq_len(nrow(net_test))) {
+    test_features[i, 1:ntrn] <- net[
+      net_test$source[i], seq_len(ntrn)
+    ]
+    test_features[i, (ntrn + 1):(2 * ntrn)] <- net[
+      net_test$target[i] + ntrn, seq_len(ntrn)
+    ]
+  }
+  return(
+    list(
+      train = net_train %>%
+        dplyr::pull(weight),
+      test = net_test %>%
+        dplyr::pull(weight),
+      features_train = train_features %>%
+        dplyr::as_tibble(),
+      features_test = test_features %>%
+        dplyr::as_tibble()
     )
   )
 }

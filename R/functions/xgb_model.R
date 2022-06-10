@@ -8,7 +8,9 @@ xgb_model <- function(model, datasets) {
         strata = w
     )
     ## Prepare recipe ----
-    model_recipe <- recipes::recipe(w ~ ., datasets)
+    model_recipe <- recipes::recipe(w ~ ., datasets) %>%
+        recipes::step_string2factor(recipes::all_nominal()) %>%
+        recipes::prep()
     ## Compute in train ----
     train_wf <- workflows::workflow() %>%
         workflows::add_model(model) %>%

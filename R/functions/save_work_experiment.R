@@ -4,8 +4,9 @@ save.work.experiment <- function(
   source("functions/eval_tools.R")
   train_pred <- model$train_pred
   test_pred <- model$test_pred
+  train_fit <- model$train_fit
   best_score <- xgboost::xgb.importance(
-            model = train_pred$fit) %>%
+            model = train_fit$fit) %>%
             dplyr::as_tibble()
   test_prediction <- test_pred %>%
     tune::collect_predictions() %>%
@@ -15,20 +16,27 @@ save.work.experiment <- function(
   train_rmae <- train_rmae$mean[1]
   # Ensemble parameters ----
   source("functions/rmae.R")
+  test_rmae <- rmae(rsample::testing(datasets)$w, test_prediction$.pred)
   parameters <- model$parameters %>%
     dplyr::bind_cols(
       dplyr::tibble(
         train.rmae = train_rmae,
-        rmae(rsample::testing(datasets)$w, test_prediction$.pred),
+        test.rmae = test_rmae,
       ), best_score
     )
   # Ensemble regression
+  zeros <- rsample::testing(datasets)$w == 0
   regression_values <- dplyr::tibble(
-    w = rsample::testing(datasets)$w %>%
-     get.nonzero(mats$test),
-    pred = test.prediction$.pred %>%
-      get.nonzero(mats$test),
-    id = ids$test, serie = serie, trial = trial, fold = fold
+    w = rsample::testing(datasets)$w[!zeros],
+    pred = test_prediction$.pred[!zeros],
+    dist = rsample::testing(datasets)$dist[!zeros],
+    sim = rsample::testing(datasets)$sim[!zeros],
+    train_rmae = train_rmae,
+    test_rmae = test_rmae,
+    id = ids$test[!zeros],
+    serie = serie,
+    trial = trial,
+    fold = fold
   )
   # Check if files exist ----
   if (!file.exists(
@@ -49,7 +57,7 @@ save.work.experiment <- function(
     regression_values <- r %>%
       dplyr::bind_rows(regression_values)
     write.csv(
-      regression.values,
+      regression_values,
       "../CSV/%s/XGBOOST/%s/model_predictions_%i.csv" %>%
         sprintf(inst$folder, inst$common, serie), row.names = F
     )

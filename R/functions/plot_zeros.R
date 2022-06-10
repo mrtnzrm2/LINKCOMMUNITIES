@@ -1,4 +1,4 @@
-plot.zeros <- function(train, test, serie, inst, subfolder="") {
+plot.zeros <- function(train, test, kcoords, serie, inst, subfolder="") {
     dir.create(
         "%s/%s/Regression/XGBOOST/%s/%i" %>%
             sprintf(inst$plot, inst$folder, subfolder, serie),
@@ -15,11 +15,22 @@ plot.zeros <- function(train, test, serie, inst, subfolder="") {
     test_link$cat.2 <- "Test"
     data <- train_link %>%
     dplyr::bind_rows(test_link)
+    kcoords <- kcoords %>%
+        dplyr::as_tibble() %>%
+        dplyr::rename(
+            dist = V2,
+            sim = V1
+        )
     # Scatter-plot dist-sim
     p_scat <- data %>%
         ggplot2::ggplot(ggplot2::aes(dist, sim, color = cat)) +
         ggplot2::facet_wrap(~cat.2) +
-        ggplot2::geom_point(size = 0.5, alpha= 0.5) +
+        ggplot2::geom_point(size = 0.5, alpha = 0.5) +
+        ggplot2::geom_point(
+            data = kcoords,
+            ggplot2::aes(dist, sim),
+            color = "black"
+        ) +
         ggplot2::theme_bw()
     # Histogram sim
     p_histosim <- data %>%

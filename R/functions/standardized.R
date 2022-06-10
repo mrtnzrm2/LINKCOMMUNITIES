@@ -11,7 +11,8 @@ standardized.diag <- function(v, nt) {
   return((v - mean(v, na.rm = T)) / sd(v, na.rm = T))
 }
 
-standardized.block.diag <- function(v, nt) {
+standardized.block.diag <- function(v) {
+  nt <- dim(v)[2]
   v[1:nt, 1:nt][diag(nt) == 1] <- NA
   return((v - mean(v, na.rm = T)) / sd(v, na.rm = T))
 }
