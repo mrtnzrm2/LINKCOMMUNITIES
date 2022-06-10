@@ -76,8 +76,7 @@ int print_progress(int count, int N, int flag){
 }
 
 // [[Rcpp::export]]
-vector<vector<int> > constrained_hclust(vector<vector<double> > &distance, vector<int> &id, int &N_train, int &N_test, int &K){
-
+vector<vector<int> > constrained_hclust(vector<vector<double> > &distance, vector<int> &id, int &N_train, int &N_test, int K){
     vector<vector<int> > communities_train;
     for (int i=0; i < K; i++){
         communities_train.push_back(find_member(id, N_train, i+1));
@@ -91,7 +90,7 @@ vector<vector<int> > constrained_hclust(vector<vector<double> > &distance, vecto
         pre = print_progress(i, N_test, pre);
         min_dist = INT32_MAX;
         for (int k=0; k < K; k++){
-            dist = single_linkage(distance, communities_train[k], i);
+            dist = complete_linkage(distance, communities_train[k], i);
             if (dist < min_dist){
                 com = k;
                 min_dist = dist;

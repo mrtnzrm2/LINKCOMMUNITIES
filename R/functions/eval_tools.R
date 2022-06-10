@@ -42,7 +42,7 @@ norm.pred.test <- function(pred, mat, id){
   return(pred.mat)
 }
 
-get.nonzero <- function(w, mat){
+get.nonzero <- function(w, mat) {
   source("functions/adj_to_df.R")
   mat <- mat %>% adj.to.df()
   nonzero <- !mat$weight == 0

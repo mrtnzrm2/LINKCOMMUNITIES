@@ -4,5 +4,6 @@ format.labels <- function(labels){
       labels[i] <- stringr::str_replace(labels[i], "/", ".")
     }
   }
+  labels[labels == "insula"] <- "ins"
   return(labels)
 }

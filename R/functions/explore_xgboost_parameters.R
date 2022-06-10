@@ -1,79 +1,119 @@
-explore.xgboost.parameters <- function(model, datasets, mats, ids, inst, subfolder="", suffix="", on=T){
-  if (on){
-    source("functions/rmae.R")
+explore.xgboost.parameters <- function(
+  model, datasets, mats, ids, inst,
+  subfolder="", suffix="", on=T) {
+  if (on) {
     source("functions/eval_tools.R")
-    # Check train set ----
-    preprocessing.recipe <- recipes::recipe(w ~ ., rsample::training(datasets)) %>% recipes::prep()
-    train.processed <- recipes::bake(preprocessing.recipe,  new_data = rsample::training(datasets))
-    train.model <- model %>%
-      parsnip::fit(
-        formula = w ~ ., 
-        data    = train.processed
-      ) 
-    train.prediction <- train.model %>%
-      predict(new_data = train.processed) %>%
-      dplyr::bind_cols(rsample::training(datasets))
+    train_pred <- model$train_pred
+    test_pred <- model$test_pred
+    # Get predictions from train set ----
+    train_prediction <- train_pred %>%
+      tune::collect_predictions() %>%
+      dplyr::group_by(id)
+    train_prediction <- train_prediction %>%
+      dplyr::select(w, .pred)
     # RMAE train set ----
-    train.score <- dplyr::tibble(rmae=rmae(train.prediction$w, train.prediction$.pred),
-                                 norm.trarin.rmae = rmae(train.prediction$w, norm.pred.train(train.prediction$.pred, mats$train, ids$train))) %>%
-      knitr::kable()
-    print(train.score)
+    train_scores <- train_pred %>%
+      tune::collect_metrics()
+    train_rmae <- train_scores$mean[1]
+    train_rmse <- train_scores$mean[2]
+    dplyr::tibble(
+      rmae = train_rmae,
+      rmse = train_rmse
+    ) %>%
+      knitr::kable() %>%
+      print()
     # Explainer train ----
-    explainer <- DALEX::explain(
-      model=train.model,
-      data=rsample::training(datasets),
-      y= rsample::training(datasets)$w,
-      label="XGboost"
+    explainer <- DALEXtra::explain_xgboost(
+      model = model$train_fit,
+      data = rsample::training(datasets),
+      y = rsample::training(datasets)$w,
+      label = "XGboost"
     )
     mstudio <- modelStudio::modelStudio(explainer)
-    r2d3::save_d3_html(mstudio, file = "%s/%s/Regression/XGBOOST/%s/model_train_%s.html" %>% sprintf(inst$plot, inst$folder, subfolder, suffix))
+    r2d3::save_d3_html(
+      mstudio,
+      file = "%s/%s/Regression/XGBOOST/%s/model_train_%s.html" %>%
+        sprintf(inst$plot, inst$folder, subfolder, suffix)
+    )
     # Explainer test ----
     explainer <- DALEX::explain(
-      model=train.model,
-      data=rsample::testing(datasets),
-      y= rsample::testing(datasets)$w,
-      label="XGboost"
+      model = model$train_fit,
+      data = rsample::testing(datasets),
+      y = rsample::testing(datasets)$w,
+      label = "XGboost"
     )
     mstudio <- modelStudio::modelStudio(explainer)
-    r2d3::save_d3_html(mstudio, file = "%s/%s/Regression/XGBOOST/%s/model_test_%s.html" %>% sprintf(inst$plot, inst$folder, subfolder, suffix))
+    r2d3::save_d3_html(
+      mstudio,
+      file = "%s/%s/Regression/XGBOOST/%s/model_test_%s.html" %>%
+        sprintf(inst$plot, inst$folder, subfolder, suffix)
+    )
     # Check in test ----
-    test.processed <- recipes::bake(preprocessing.recipe,  new_data = rsample::testing(datasets))
-    test.prediction <- train.model %>%
-      predict(new_data = test.processed) %>%
-      dplyr::bind_cols(rsample::testing(datasets))
-    
-    w.test <- test.prediction$w %>% get.nonzero(mats$test)
-    pred.test <- test.prediction$.pred %>% get.nonzero(mats$test)
-    pred.test.norm <- test.prediction$.pred %>% norm.pred.test(mats$test, ids$tes)
-    
-    test.score <- dplyr::tibble( test.rmae = rmae(w.test, pred.test),
-                                 norm.test.rmae = rmae(w.test, pred.test.norm)) %>%
-      knitr::kable()
-    print(test.score)
+    # Get predictions from test set ----
+    test_prediction <- test_pred %>%
+      tune::collect_predictions() %>%
+      dplyr::select(w, .pred)
+     # RMAE test set ----
+    test_scores <- test_pred %>%
+      tune::collect_metrics()
+    test_rmse <- test_scores$.estimate[1]
+    test_rmae <- test_scores$.estimate[2]
+    dplyr::tibble(
+      rmae = test_rmae,
+      rmse = test_rmse
+    ) %>%
+      knitr::kable() %>%
+      print()
+    # Information ----
     # Graphs ----
+    ## Residuals ----
     source("functions/plot_diagnosis.R")
     print("* Residuals train")
-    train.residuals <- train.prediction %>%
+    train_residuals <- train_prediction %>%
       dplyr::arrange(.pred) %>%
       dplyr::mutate(.resid = (w - .pred)) %>%
-      dplyr::mutate(.stdresid = .resid/sd(.resid))
-    p <- plot.diagnosis(train.residuals)
-    purb <- ggpubr::ggarrange(p$res.fit, p$norm.qq, p$scale.location, p$den.res, nrow = 2, ncol = 2, labels = c("A", "B", "C", "D"))
-    png("%s/%s/Regression/XGBOOST/%s/residuals_train%s.png" %>% sprintf(inst$plot, inst$folder, subfolder, suffix), width = 9, height = 8, res = 200, units = "in")
+      dplyr::mutate(.stdresid = .resid / sd(.resid))
+    p <- plot.diagnosis(train_residuals)
+    purb <- ggpubr::ggarrange(
+      p$res.fit, p$norm.qq, p$scale.location, p$den.res,
+      nrow = 2, ncol = 2, labels = c("A", "B", "C", "D")
+    )
+    png(
+      "%s/%s/Regression/XGBOOST/%s/residuals_train%s.png" %>%
+      sprintf(inst$plot, inst$folder, subfolder, suffix),
+      width = 9, height = 8, res = 200, units = "in"
+    )
     print(purb)
     dev.off()
-    
     print("* Residuals test")
-    test.residuals.norm <- dplyr::tibble(
-      w=w.test,
-      .pred=pred.test,
-      .resid=(w.test - pred.test),
-      .stdresid=(w.test - pred.test)/sd(w.test - pred.test))
-    p <- plot.diagnosis(test.residuals.norm)
-    purb <- ggpubr::ggarrange(p$res.fit, p$norm.qq, p$scale.location, p$den.res, nrow = 2, ncol = 2, labels = c("A", "B", "C", "D"))
-    png("%s/%s/Regression/XGBOOST/%s/residuals_test%s.png" %>% sprintf(inst$plot, inst$folder, subfolder, suffix), width = 9, height = 8, res = 200, units = "in")
+    test_residuals <- test_prediction %>%
+      dplyr::filter(w > 0) %>%
+      dplyr::arrange(.pred) %>%
+      dplyr::mutate(.resid = (w - .pred)) %>%
+      dplyr::mutate(.stdresid = .resid / sd(.resid))
+    p <- plot.diagnosis(test_residuals)
+    purb <- ggpubr::ggarrange(
+      p$res.fit, p$norm.qq, p$scale.location, p$den.res,
+      nrow = 2, ncol = 2, labels = c("A", "B", "C", "D")
+    )
+    png(
+      "%s/%s/Regression/XGBOOST/%s/residuals_test%s.png" %>%
+      sprintf(inst$plot, inst$folder, subfolder, suffix),
+      width = 9, height = 8, res = 200, units = "in"
+    )
     print(purb)
     dev.off()
-    
+    ## VIP
+    p.vip <- test_pred %>%
+    purrr::pluck(".workflow", 1) %>%
+    tune::extract_fit_parsnip() %>%
+    vip::vip()
+    png(
+      "%s/%s/Regression/XGBOOST/%s/vip_test%s.png" %>%
+      sprintf(inst$plot, inst$folder, subfolder, suffix),
+      width = 6, height = 5, res = 200, units = "in"
+    )
+    print(p.vip)
+    dev.off()
   }
 }

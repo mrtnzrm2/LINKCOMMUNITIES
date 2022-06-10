@@ -1,4 +1,4 @@
-plot.matrix <- function(M, name1=''){
+plot_matrix <- function(M, name1=''){
   source('functions/adj_to_df.R')
   M <- adj.to.df(M)
   M$type <- name1

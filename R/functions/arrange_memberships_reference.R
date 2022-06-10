@@ -1,9 +1,15 @@
-arrange.memberships.reference <- function(memberships, k){
-  ref.membership <- read.csv("../WSBM/CD/CSV/labels/commships/merged/tracto2016/zz_model/NOSP/al_0/K/MAX/k_%i.csv" %>% sprintf(k)) %>% unlist() %>% as.numeric()
+arrange.memberships.reference <- function(
+  memberships, k, inst
+) {
+  ref.membership <- "../WSBM/CD/CSV/labels/%s/%s/%s/al_%i/K/%s/k_%i.csv" %>%
+    sprintf(
+      inst$data, inst$folder, inst$common,
+      inst$al, inst$MAN, k
+    ) %>%
+    read.csv() %>%
+    unlist() %>%
+    as.numeric()
   source("functions/apply_munkres.R")
-  # print(memberships)
-  # print(ref.membership)
   memberships <- apply.munkres(memberships, ref.membership, k)
-  # print(memberships)
   return(memberships)
 }

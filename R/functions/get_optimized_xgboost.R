@@ -20,24 +20,24 @@ get.optimized.xgboost <- function(datasets, inst, grid.size=60, filename="1", sa
       learn_rate = e1071::tune(),
       loss_reduction = e1071::tune()
     ) %>% 
-      parsnip::set_engine("xgboost", objective = "reg:squarederror")
+      parsnip::set_engine("xgboost",
+      objective = "reg:squarederror",
+      lambda = 20
+    )
     # Grid specification ----
-    xgboost.params <- 
-      dials::parameters(
+    xgboost.params <- dials::parameters(
         dials::min_n(),
         dials::tree_depth(),
         dials::learn_rate(),
         dials::loss_reduction()
-      )
-    xgboost.grid <- 
-      dials::grid_max_entropy(
-        xgboost.params, 
+    )
+    xgboost.grid <- dials::grid_max_entropy(
+        xgboost.params,
         size = grid.size
-      )
+    )
     # Define the workflow ----
-    xgboost.wf <- 
-      workflows::workflow() %>%
-      workflows::add_model(xgboost.model) %>% 
+    xgboost.wf <- workflows::workflow() %>%
+      workflows::add_model(xgboost.model) %>%
       workflows::add_formula(w ~ .)
     # Hyperparameter tuning ----
     source("functions/num-rmae.R")
