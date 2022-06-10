@@ -18,9 +18,9 @@ data {
   int<lower=1> M;
   int<lower=1> N;
   int<lower=2> K;
-  int<lower=1, upper=K> mat[M,N];
-  int<lower=0, upper=1> w[M,N];
-  real<lower=0> D[M, N];
+  array[M,N] int<lower=1, upper=K> mat;
+  array[M,N] int<lower=0, upper=1> w;
+  array[M, N] real<lower=0> D;
   int<lower=1> d;
 }
 
@@ -29,8 +29,8 @@ parameters {
     real<lower=machine_precision()> sigma;                                            
     real<lower=machine_precision()> rho;
     real<lower=machine_precision()> rho_s;
-    vector<lower=-1, upper=1>[d] z[M];
-    vector<lower=-1, upper=1>[d] z_s[M];
+    array[M] vector<lower=-1, upper=1>[d] z;
+    array[M] vector<lower=-1, upper=1>[d] z_s;
 }
 
 transformed parameters{
@@ -60,17 +60,17 @@ model {
     z[i] ~ normal(0, rho);
   }
   {
-    vector[K] f[M, N];
+    vector[K] f;
     real eta_ij;
     for (i in 1:M) {
       for (j in 1:N) {
         if (!w[i, j]) {
           eta_ij = D[i,j] + asym[i, j];
-          f[i,j,1] = 1 - Phi( (eta_ij - b[1]) / sigma);
+          f[1] = 1 - Phi( (eta_ij - b[1]) / sigma);
           for(k in 2:(K-1))
-            f[i,j,k] = Phi( (eta_ij - b[k-1]) / sigma) - Phi( (eta_ij - b[k]) / sigma);
-          f[i,j,K] = Phi( (eta_ij - b[K-1] ) / sigma);
-          mat[i, j] ~ categorical(f[i, j]);
+            f[k] = Phi( (eta_ij - b[k-1]) / sigma) - Phi( (eta_ij - b[k]) / sigma);
+          f[K] = Phi( (eta_ij - b[K-1] ) / sigma);
+          mat[i, j] ~ categorical(f);
         }
       }
     }
